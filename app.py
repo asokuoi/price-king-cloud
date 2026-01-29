@@ -9,6 +9,9 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import sqlite3
 import json
 import os
+import psycopg2      # <--- ⚠️ 兇手就是少了這一行！請補上！
+from psycopg2.extras import DictCursor
+# ... 其他原本的 flask import ...
 from datetime import datetime, timedelta
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
