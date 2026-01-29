@@ -517,31 +517,24 @@
     }
 
     // 3. 執行跳轉 (強制 GPS)
+    // 3. 執行跳轉 (正式上線版：無彈窗)
     function executeRedirect(baseUrl) {
         if (!navigator.geolocation) {
-            alert("❌ 您的瀏覽器不支援 GPS，將直接搜尋");
+            // 不支援 GPS，直接跳轉，不吵使用者
             window.location.href = baseUrl;
             return;
         }
 
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                // ✅ 成功！這裡會彈出視窗告訴您經緯度
-                alert(`✅ GPS 成功抓取！\n緯度: ${pos.coords.latitude}\n經度: ${pos.coords.longitude}`);
-                
+                // ✅ 成功抓到，靜默跳轉
                 window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
             },
             (err) => {
-                // ⚠️ 失敗！這裡會彈出視窗告訴您原因
-                let msg = "";
-                if(err.code == 1) msg = "請允許取用位置權限";
-                else if(err.code == 2) msg = "無法偵測目前位置";
-                else if(err.code == 3) msg = "連線逾時";
-                
-                alert(`⚠️ GPS 失敗 (${msg})\n將進行普通搜尋`);
+                // ⚠️ 失敗，靜默跳轉 (直接搜，不顯示錯誤)
                 window.location.href = baseUrl;
             },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 } 
+            { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 } 
         );
     }
     

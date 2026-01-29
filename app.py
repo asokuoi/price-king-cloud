@@ -195,7 +195,9 @@ def handle_message(event):
     elif msg == "教學":
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text="📝 【使用教學】\n\n1. 直接輸入商品名稱 (例如：百威) 即可搜尋全網價格。\n2. 點擊「進入比價大廳」可瀏覽各通路分類。\n3. 在單店頁面中，點擊「導航」可前往最近店家。"))
     else:
-        search_url = f"https://liff.line.me/{config.LIFF_ID}/search?keyword={quote(msg)}"
+        # ✅ FIX: 在網址後方補上 &line_id=...，讓後端能抓到是誰搜尋的
+        search_url = f"https://liff.line.me/{config.LIFF_ID}/search?keyword={quote(msg)}&line_id={user_line_id}"
+        
         flex_msg = {
             "type": "bubble",
             "body": {"type": "box", "layout": "vertical", "contents": [
