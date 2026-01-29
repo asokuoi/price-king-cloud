@@ -879,14 +879,46 @@ def admin_products():
         if d['kind'] in options: options[d['kind']].append(d)
     conn.close(); return render_template('admin/products.html', products=products, options=options)
 
+# ----------------------------------------------------
+# 🛍️ 商品管理：新增商品 (V89.6 修正版：防呆與轉型)
+# ----------------------------------------------------
 @app.route('/admin/products/add', methods=['POST'])
 def admin_products_add():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    conn = get_db(); cur = conn.cursor(); 
-    # ✅ FIX: ? -> %s
-    cur.execute("INSERT INTO products (name, spec, material, category, keywords, capacity, unit) VALUES (%s,%s,%s,%s,%s,%s,%s)", 
-                (request.form.get('name'), request.form.get('spec'), request.form.get('material'), request.form.get('category'), request.form.get('keywords'), request.form.get('capacity'), request.form.get('unit')))
-    conn.commit(); conn.close(); return redirect(url_for('admin_products'))
+    
+    # 1. 接收並清洗資料
+    name = request.form.get('name')
+    spec = request.form.get('spec')
+    material = request.form.get('material')
+    category = request.form.get('category')
+    keywords = request.form.get('keywords')
+    unit = request.form.get('unit')
+    
+    # ⚠️ 關鍵修正：處理數字欄位的空白問題
+    # 如果 capacity 是空字串，直接塞給 SQL 會導致 "Invalid input syntax" 錯誤
+    cap_raw = request.form.get('capacity')
+    try:
+        # 如果有值就轉成 float，沒值或是怪怪的符號就給 0
+        capacity = float(cap_raw) if cap_raw and cap_raw.strip() else 0
+    except:
+        capacity = 0
+        
+    conn = get_db(); cur = conn.cursor()
+    try:
+        # 2. 執行寫入 
+        # (補上 status=1 預設上架, priority=0 預設排序，避免資料庫因欄位缺失報錯)
+        cur.execute("""
+            INSERT INTO products (name, spec, material, category, keywords, capacity, unit, status, priority) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 1, 0)
+        """, (name, spec, material, category, keywords, capacity, unit))
+        conn.commit()
+    except Exception as e:
+        print(f"Insert Error: {e}") # 在 Log 印出錯誤，避免完全瞎掉
+        conn.rollback()
+    finally:
+        conn.close()
+
+    return redirect(url_for('admin_products'))
 
 @app.route('/admin/products/edit', methods=['POST'])
 def admin_products_edit():
