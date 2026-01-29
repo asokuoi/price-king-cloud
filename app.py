@@ -491,11 +491,16 @@ def admin_dashboard():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     conn = get_db(); cur = conn.cursor()
     data = {}
-    try: 
-        # ✅ FIX: SQLite date() -> Postgres DATE(...)
-        cur.execute("SELECT COUNT(*) FROM search_logs WHERE DATE(log_time + interval '8 hours') = DATE(CURRENT_TIMESTAMP + interval '8 hours')")
-        data['today_search'] = cur.fetchone()[0]
-    except: data['today_search'] = 0
+    try:
+        cur.execute("SELECT keyword, log_time FROM search_logs ORDER BY log_time DESC LIMIT 10")
+        # 修改開始：強制把時間轉成字串，讓 HTML 不會報錯
+        recent_searches = []
+        for r in cur.fetchall():
+            d = dict(r)
+            d['log_time'] = str(d['log_time']) # 關鍵這行！
+            recent_searches.append(d)
+        # 修改結束
+    except: recent_searches = []
     try: cur.execute("SELECT COUNT(*) FROM products WHERE status = 1"); data['product_count'] = cur.fetchone()[0]
     except: data['product_count'] = 0
     try: cur.execute("SELECT COUNT(*) FROM chains WHERE status = 1"); data['store_count'] = cur.fetchone()[0]
@@ -549,7 +554,13 @@ def admin_audit_review():
     """
     try:
         cur.execute(query, (query_date,))
-        logs = [dict(r) for r in cur.fetchall()]
+        # 修改開始
+        logs = []
+        for r in cur.fetchall():
+            d = dict(r)
+            d['log_time'] = str(d['log_time']) # 關鍵這行！
+            logs.append(d)
+        # 修改結束
     except: logs = []
     conn.close()
     return render_template('admin/audit_review.html', logs=logs, current_date=query_date)
