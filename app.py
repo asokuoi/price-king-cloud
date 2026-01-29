@@ -1,35 +1,36 @@
 # ==========================================
-# 🏆 PRICE KING 價格王 - V88.0 迎賓與會員建檔版
+# 🏆 PRICE KING 價格王 - V89.0 雲端 PostgreSQL 專用版
 # ------------------------------------------
-# 1. 核心：保留 V85 搜尋邏輯 (分類/置頂/雙重霸主)
-# 2. 後台：保留 V87 通路與員工管理
-# 3. 新增：FollowEvent 監聽器 (新好友加入自動建檔 + 歡迎卡片)
+# 1. 核心邏輯：與 V88 完全一致
+# 2. 資料庫層：全面修正為 PostgreSQL 語法 (%s 與 時間函數)
+# 3. 修復重點：解決 Internal Server Error 與 Syntax Error
 # ==========================================
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
-import sqlite3
-import json
-import os
-import psycopg2      # <--- ⚠️ 兇手就是少了這一行！請補上！
+import psycopg2
 from psycopg2.extras import DictCursor
-# ... 其他原本的 flask import ...
+import os
+import json
 from datetime import datetime, timedelta
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
 from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, FollowEvent
 from urllib.parse import quote, unquote
-import database
+# 注意：這裡雖然 import 了 database 和 sqlite3，但在雲端主要依賴 psycopg2
 import config
-from psycopg2.extras import DictCursor
 
 app = Flask(__name__)
-app.secret_key = config.SECRET_KEY
+app.secret_key = os.environ.get('SECRET_KEY', config.SECRET_KEY) # 優先讀取環境變數
 
-line_bot_api = LineBotApi(config.LINE_CHANNEL_ACCESS_TOKEN)
-handler = WebhookHandler(config.LINE_CHANNEL_SECRET)
+line_bot_api = LineBotApi(os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', config.LINE_CHANNEL_ACCESS_TOKEN))
+handler = WebhookHandler(os.environ.get('LINE_CHANNEL_SECRET', config.LINE_CHANNEL_SECRET))
 
 def get_db():
-    # 加入 cursor_factory=DictCursor 參數
-    conn = psycopg2.connect(os.environ.get('DATABASE_URL'), cursor_factory=DictCursor)
+    # ✅ FIX: 確保使用 PostgreSQL 連線，並使用 DictCursor 讓操作像 SQLite 一樣方便
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url and db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    
+    conn = psycopg2.connect(db_url, cursor_factory=DictCursor)
     return conn
 
 def is_admin_logged_in(): return session.get('admin_logged_in')
@@ -84,14 +85,16 @@ def handle_follow(event):
     # 1. 會員建檔 (Insert or Update)
     conn = get_db(); cur = conn.cursor()
     try:
+        # ✅ FIX: SQLite 'datetime' -> Postgres 'CURRENT_TIMESTAMP'
+        # ✅ FIX: ? -> %s
         cur.execute("""
             INSERT INTO users (line_id, display_name, picture_url, status, join_date, last_active)
-            VALUES (?, ?, ?, 1, datetime('now', '+8 hours'), datetime('now', '+8 hours'))
+            VALUES (%s, %s, %s, 1, CURRENT_TIMESTAMP + interval '8 hours', CURRENT_TIMESTAMP + interval '8 hours')
             ON CONFLICT(line_id) DO UPDATE SET
             display_name = excluded.display_name,
             picture_url = excluded.picture_url,
             status = 1,
-            last_active = datetime('now', '+8 hours')
+            last_active = CURRENT_TIMESTAMP + interval '8 hours'
         """, (user_id, display_name, picture_url))
         conn.commit()
     except Exception as e:
@@ -106,7 +109,7 @@ def handle_follow(event):
         "type": "bubble",
         "hero": {
             "type": "image",
-            "url": "https://cdn-icons-png.flaticon.com/512/3135/3135715.png", # 暫用通用比價圖，可換成您的 Logo
+            "url": "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
             "size": "full",
             "aspectRatio": "20:13",
             "aspectMode": "cover"
@@ -151,13 +154,17 @@ def handle_message(event):
     
     conn = get_db(); cur = conn.cursor()
     # 更新使用者最後活躍時間
-    try: cur.execute("UPDATE users SET last_active = datetime('now', '+8 hours') WHERE line_id = ?", (user_line_id,)); conn.commit()
+    try: 
+        # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
+        cur.execute("UPDATE users SET last_active = CURRENT_TIMESTAMP + interval '8 hours' WHERE line_id = %s", (user_line_id,))
+        conn.commit()
     except: pass
     
     try:
         cur.execute("SELECT audit_code FROM admin_users WHERE username = 'admin'")
         res = cur.fetchone()
-        global_audit_code = str(dict(res)['audit_code']).strip() if res else "8888"
+        # DictCursor 讓這裡可以用 dict(res) 或者直接 res['audit_code']
+        global_audit_code = str(res['audit_code']).strip() if res else "8888"
     except: global_audit_code = "8888"
     conn.close()
 
@@ -221,7 +228,8 @@ def api_staff_check():
     line_id = request.json.get('line_id')
     if not line_id: return jsonify({'status': 'error'})
     conn = get_db(); cur = conn.cursor()
-    cur.execute("SELECT level, chain_id, name, status, wallet FROM staff WHERE line_id = ?", (line_id,))
+    # ✅ FIX: ? -> %s
+    cur.execute("SELECT level, chain_id, name, status, wallet FROM staff WHERE line_id = %s", (line_id,))
     res = cur.fetchone()
     conn.close()
     
@@ -239,7 +247,8 @@ def api_price_update():
     
     conn = get_db(); cur = conn.cursor()
     try:
-        cur.execute("SELECT status, name, wallet, level FROM staff WHERE line_id = ?", (d['line_id'],))
+        # ✅ FIX: ? -> %s
+        cur.execute("SELECT status, name, wallet, level FROM staff WHERE line_id = %s", (d['line_id'],))
         staff_res = cur.fetchone()
         if not staff_res: return jsonify({'status': 'error', 'msg': '未授權用戶'})
         staff = dict(staff_res)
@@ -263,45 +272,54 @@ def api_price_update():
         elif pt == 5: promo_label = f"第{pq}件${int(pv)}"
         elif pt == 6: promo_label = f"第{pq}件{int(pv/10) if pv%10==0 else int(pv)}折"
 
+        # ✅ FIX: ? -> %s, date() -> DATE(.. AT TIME ZONE)
+        # PostgreSQL 的 date() 比較嚴格，這裡用日期比對
         cur.execute("""
             SELECT id, staff_line_id FROM price_logs 
-            WHERE product_id=? AND chain_id=? AND status=1 
-            AND date(log_time, '+8 hours') = date('now', '+8 hours')
+            WHERE product_id=%s AND chain_id=%s AND status=1 
+            AND DATE(log_time + interval '8 hours') = DATE(CURRENT_TIMESTAMP + interval '8 hours')
         """, (d['product_id'], d['chain_id']))
         prev_log = cur.fetchone()
 
         if prev_log:
             prev_log_id = prev_log['id']
             prev_staff_id = prev_log['staff_line_id']
-            cur.execute("SELECT level FROM staff WHERE line_id=?", (prev_staff_id,))
+            # ✅ FIX: ? -> %s
+            cur.execute("SELECT level FROM staff WHERE line_id=%s", (prev_staff_id,))
             prev_staff_res = cur.fetchone()
             prev_level = prev_staff_res['level'] if prev_staff_res else 0
 
             if current_level >= prev_level:
-                cur.execute("UPDATE price_logs SET status=0 WHERE id=?", (prev_log_id,))
-                cur.execute("UPDATE staff SET wallet = wallet - 5 WHERE line_id=? AND wallet >= 5", (prev_staff_id,))
+                # ✅ FIX: ? -> %s
+                cur.execute("UPDATE price_logs SET status=0 WHERE id=%s", (prev_log_id,))
+                cur.execute("UPDATE staff SET wallet = wallet - 5 WHERE line_id=%s AND wallet >= 5", (prev_staff_id,))
                 
-        cur.execute("SELECT id FROM prices WHERE product_id=? AND chain_id=?", (d['product_id'], d['chain_id']))
+        # ✅ FIX: ? -> %s
+        cur.execute("SELECT id FROM prices WHERE product_id=%s AND chain_id=%s", (d['product_id'], d['chain_id']))
         row = cur.fetchone()
         
         if row:
+            # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
             sql = """UPDATE prices SET 
-                     price=?, base_price=?, promo_type=?, promo_qty=?, promo_val=?, promo_label=?, 
-                     update_time=datetime('now', '+8 hours'), updated_by_line_id=? 
-                     WHERE id=?"""
+                     price=%s, base_price=%s, promo_type=%s, promo_qty=%s, promo_val=%s, promo_label=%s, 
+                     update_time=CURRENT_TIMESTAMP + interval '8 hours', updated_by_line_id=%s 
+                     WHERE id=%s"""
             cur.execute(sql, (final_price, base_price, pt, pq, pv, promo_label, d['line_id'], row['id']))
         else:
+            # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
             sql = """INSERT INTO prices 
                      (product_id, chain_id, price, base_price, promo_type, promo_qty, promo_val, promo_label, update_time, updated_by_line_id) 
-                     VALUES (?,?,?,?,?,?,?,?,datetime('now', '+8 hours'),?)"""
+                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP + interval '8 hours',%s)"""
             cur.execute(sql, (d['product_id'], d['chain_id'], final_price, base_price, pt, pq, pv, promo_label, d['line_id']))
         
+        # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
         cur.execute("""INSERT INTO price_logs 
                        (staff_line_id, product_id, chain_id, new_price, base_price, promo_type, promo_qty, promo_val, promo_label, log_time, is_paid, status) 
-                       VALUES (?,?,?,?,?,?,?,?,?,datetime('now', '+8 hours'),0, 1)""", 
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP + interval '8 hours',0, 1)""", 
                        (d['line_id'], d['product_id'], d['chain_id'], final_price, base_price, pt, pq, pv, promo_label))
         
-        cur.execute("UPDATE staff SET wallet = wallet + 5 WHERE line_id = ?", (d['line_id'],))
+        # ✅ FIX: ? -> %s
+        cur.execute("UPDATE staff SET wallet = wallet + 5 WHERE line_id = %s", (d['line_id'],))
         conn.commit()
         return jsonify({'status':'success', 'label': promo_label})
     except Exception as e: return jsonify({'status':'error', 'msg':str(e)}), 500
@@ -323,13 +341,17 @@ def consumer_search():
     
     # 流量清洗
     if keyword and len(keyword) > 0:
-        try: cur.execute("INSERT INTO search_logs (keyword, log_time) VALUES (?, datetime('now', '+8 hours'))", (keyword,)); conn.commit()
+        try: 
+            # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
+            cur.execute("INSERT INTO search_logs (keyword, log_time) VALUES (%s, CURRENT_TIMESTAMP + interval '8 hours')", (keyword,))
+            conn.commit()
         except: pass
 
     # 1. 智慧分類鎖定
     if pin_product_id and not target_category:
         try:
-            cur.execute("SELECT category FROM products WHERE id = ?", (pin_product_id,))
+            # ✅ FIX: ? -> %s
+            cur.execute("SELECT category FROM products WHERE id = %s", (pin_product_id,))
             res = cur.fetchone()
             if res: target_category = dict(res)['category']
         except: pass
@@ -349,7 +371,8 @@ def consumer_search():
     # 3. 撈產品
     cols = "id, name, spec, material, category, keywords, priority, image_url, capacity, unit"
     if mode == 'store_shelf' and target_chain_id:
-        if target_category: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 AND category = ? ORDER BY priority DESC, id", (target_category,))
+        # ✅ FIX: ? -> %s
+        if target_category: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 AND category = %s ORDER BY priority DESC, id", (target_category,))
         else: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 ORDER BY category, priority DESC, id")
     else:
         cur.execute(f"SELECT {cols} FROM products WHERE status = 1 ORDER BY priority DESC, category, id")
@@ -454,7 +477,8 @@ def consumer_search():
 def admin_login():
     if request.method == 'POST':
         conn = get_db(); cur = conn.cursor()
-        cur.execute("SELECT * FROM admin_users WHERE username = ?", (request.form['username'],))
+        # ✅ FIX: ? -> %s
+        cur.execute("SELECT * FROM admin_users WHERE username = %s", (request.form['username'],))
         acc = cur.fetchone()
         conn.close()
         if acc and dict(acc)['password'] == request.form['password']:
@@ -467,7 +491,10 @@ def admin_dashboard():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     conn = get_db(); cur = conn.cursor()
     data = {}
-    try: cur.execute("SELECT COUNT(*) FROM search_logs WHERE date(log_time, '+8 hours') = date('now', '+8 hours')"); data['today_search'] = cur.fetchone()[0]
+    try: 
+        # ✅ FIX: SQLite date() -> Postgres DATE(...)
+        cur.execute("SELECT COUNT(*) FROM search_logs WHERE DATE(log_time + interval '8 hours') = DATE(CURRENT_TIMESTAMP + interval '8 hours')")
+        data['today_search'] = cur.fetchone()[0]
     except: data['today_search'] = 0
     try: cur.execute("SELECT COUNT(*) FROM products WHERE status = 1"); data['product_count'] = cur.fetchone()[0]
     except: data['product_count'] = 0
@@ -477,21 +504,24 @@ def admin_dashboard():
     except: data['staff_count'] = 0
     
     # 異常抓鬼 (V87: >= 2)
+    # ✅ FIX: SQLite date() -> Postgres DATE(...)
     abnormal_query = """
         SELECT s.name as staff_name, p.name as product_name, c.name as chain_name, COUNT(*) as cnt 
         FROM price_logs l
         JOIN staff s ON l.staff_line_id = s.line_id
         JOIN products p ON l.product_id = p.id
         JOIN chains c ON l.chain_id = c.id
-        WHERE date(l.log_time, '+8 hours') = date('now', '+8 hours')
-        GROUP BY l.staff_line_id, l.product_id
-        HAVING cnt >= 2
+        WHERE DATE(l.log_time + interval '8 hours') = DATE(CURRENT_TIMESTAMP + interval '8 hours')
+        GROUP BY l.staff_line_id, l.product_id, s.name, p.name, c.name
+        HAVING COUNT(*) >= 2
         ORDER BY cnt DESC LIMIT 10
     """
     try:
         cur.execute(abnormal_query)
         abnormal_list = [dict(r) for r in cur.fetchall()]
-    except: abnormal_list = []
+    except Exception as e: 
+        print(e)
+        abnormal_list = []
 
     try:
         cur.execute("SELECT keyword, log_time FROM search_logs ORDER BY log_time DESC LIMIT 10")
@@ -506,6 +536,7 @@ def admin_audit_review():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     query_date = request.args.get('query_date', datetime.now().strftime('%Y-%m-%d'))
     conn = get_db(); cur = conn.cursor()
+    # ✅ FIX: ? -> %s, date() -> DATE(...)
     query = """
         SELECT l.id, l.staff_line_id, l.new_price, l.log_time, l.status, l.is_paid, l.promo_label,
                s.name as staff_name, c.name as chain_name, p.name as product_name
@@ -513,7 +544,7 @@ def admin_audit_review():
         LEFT JOIN staff s ON l.staff_line_id = s.line_id
         LEFT JOIN chains c ON l.chain_id = c.id
         LEFT JOIN products p ON l.product_id = p.id
-        WHERE date(l.log_time, '+8 hours') = ?
+        WHERE DATE(l.log_time + interval '8 hours') = %s
         ORDER BY l.log_time DESC
     """
     try:
@@ -529,12 +560,14 @@ def admin_audit_toggle():
     log_id = request.form['log_id']
     date_val = request.form['return_date']
     conn = get_db(); cur = conn.cursor()
-    cur.execute("SELECT staff_line_id, status FROM price_logs WHERE id = ?", (log_id,))
+    # ✅ FIX: ? -> %s
+    cur.execute("SELECT staff_line_id, status FROM price_logs WHERE id = %s", (log_id,))
     log = cur.fetchone()
     if log and log['status'] == 1:
         staff_id = log['staff_line_id']
-        cur.execute("UPDATE staff SET wallet = wallet - 5 WHERE line_id = ? AND wallet >= 5", (staff_id,))
-        cur.execute("UPDATE price_logs SET status = 0 WHERE id = ?", (log_id,))
+        # ✅ FIX: ? -> %s
+        cur.execute("UPDATE staff SET wallet = wallet - 5 WHERE line_id = %s AND wallet >= 5", (staff_id,))
+        cur.execute("UPDATE price_logs SET status = 0 WHERE id = %s", (log_id,))
         conn.commit()
         flash('🚫 紀錄已作廢，獎金已回收')
     conn.close()
@@ -549,11 +582,12 @@ def admin_staff():
     staff_list = []
     for row in cur.fetchall():
         s = dict(row)
-        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = ?", (s['line_id'],))
+        # ✅ FIX: ? -> %s
+        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s", (s['line_id'],))
         s['total_logs'] = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = ? AND status = 1", (s['line_id'],))
+        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s AND status = 1", (s['line_id'],))
         s['valid_logs'] = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = ? AND status = 1 AND COALESCE(is_paid, 0) = 0", (s['line_id'],))
+        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s AND status = 1 AND COALESCE(is_paid, 0) = 0", (s['line_id'],))
         s['unpaid_logs'] = cur.fetchone()[0]
         s['calc_wallet'] = s.get('wallet', 0)
         if s.get('status') is None: s['status'] = 1
@@ -566,7 +600,11 @@ def admin_staff():
 def admin_staff_add():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     conn = get_db(); cur = conn.cursor()
-    try: cur.execute("INSERT INTO staff (line_id, name, wallet, level, chain_id, status) VALUES (?, ?, 0, ?, ?, 1)", (request.form['line_id'], request.form['name'], request.form['level'], request.form['chain_id'])); conn.commit(); flash('✅ 新增成功')
+    try: 
+        # ✅ FIX: ? -> %s
+        cur.execute("INSERT INTO staff (line_id, name, wallet, level, chain_id, status) VALUES (%s, %s, 0, %s, %s, 1)", 
+                    (request.form['line_id'], request.form['name'], request.form['level'], request.form['chain_id']))
+        conn.commit(); flash('✅ 新增成功')
     except: flash('❌ 失敗')
     conn.close(); return redirect(url_for('admin_staff'))
 
@@ -577,22 +615,24 @@ def admin_staff_edit():
     conn = get_db()
     cur = conn.cursor()
     
-    original_line_id = request.form['original_line_id'] # 舊 ID (用來找人)
-    new_line_id = request.form['new_line_id']           # 新 ID (要改成這個)
+    original_line_id = request.form['original_line_id'] 
+    new_line_id = request.form['new_line_id']           
     
     try:
         # 1. 如果 ID 有變更，先檢查新 ID 是否已被使用
         if original_line_id != new_line_id:
-            cur.execute("SELECT 1 FROM staff WHERE line_id = ?", (new_line_id,))
+            # ✅ FIX: ? -> %s
+            cur.execute("SELECT 1 FROM staff WHERE line_id = %s", (new_line_id,))
             if cur.fetchone():
                 flash(f'❌ 修改失敗：新 ID {new_line_id} 已經有其他員工使用了')
                 return redirect(url_for('admin_staff'))
 
         # 2. 更新員工資料 (含 ID)
+        # ✅ FIX: ? -> %s
         cur.execute("""
             UPDATE staff 
-            SET line_id=?, name=?, level=?, chain_id=?, status=? 
-            WHERE line_id=?
+            SET line_id=%s, name=%s, level=%s, chain_id=%s, status=%s 
+            WHERE line_id=%s
         """, (
             new_line_id, 
             request.form['name'], 
@@ -602,11 +642,11 @@ def admin_staff_edit():
             original_line_id
         ))
         
-        # 3. 🔥 關鍵：連動更新歷史紀錄 (如果 ID 變了，把舊紀錄歸戶到新 ID)
+        # 3. 🔥 關鍵：連動更新歷史紀錄
         if original_line_id != new_line_id:
-            cur.execute("UPDATE price_logs SET staff_line_id = ? WHERE staff_line_id = ?", (new_line_id, original_line_id))
-            # 如果有搜尋紀錄，也一併更新 (選用)
-            cur.execute("UPDATE search_logs SET line_id = ? WHERE line_id = ?", (new_line_id, original_line_id))
+            # ✅ FIX: ? -> %s
+            cur.execute("UPDATE price_logs SET staff_line_id = %s WHERE staff_line_id = %s", (new_line_id, original_line_id))
+            cur.execute("UPDATE search_logs SET line_id = %s WHERE line_id = %s", (new_line_id, original_line_id))
 
         conn.commit()
         flash(f'✅ 員工 {request.form["name"]} 資料更新成功')
@@ -623,16 +663,17 @@ def admin_staff_edit():
 def admin_staff_payout():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     conn = get_db(); cur = conn.cursor(); line_id = request.form['line_id']
-    # 核銷：把未核銷的 Log 標記為 is_paid=1
-    cur.execute("UPDATE price_logs SET is_paid = 1 WHERE staff_line_id = ? AND status = 1 AND COALESCE(is_paid, 0) = 0", (line_id,))
-    # 錢包歸零
-    cur.execute("UPDATE staff SET wallet = 0 WHERE line_id = ?", (line_id,)); conn.commit(); conn.close(); flash('✅ 核銷完成')
+    # ✅ FIX: ? -> %s
+    cur.execute("UPDATE price_logs SET is_paid = 1 WHERE staff_line_id = %s AND status = 1 AND COALESCE(is_paid, 0) = 0", (line_id,))
+    cur.execute("UPDATE staff SET wallet = 0 WHERE line_id = %s", (line_id,)); conn.commit(); conn.close(); flash('✅ 核銷完成')
     return redirect(url_for('admin_staff'))
 
 @app.route('/admin/staff/delete', methods=['POST'])
 def admin_staff_delete():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    conn = get_db(); cur = conn.cursor(); cur.execute("DELETE FROM staff WHERE line_id = ?", (request.form['line_id'],)); conn.commit(); conn.close(); flash('🗑️ 刪除成功')
+    conn = get_db(); cur = conn.cursor(); 
+    # ✅ FIX: ? -> %s
+    cur.execute("DELETE FROM staff WHERE line_id = %s", (request.form['line_id'],)); conn.commit(); conn.close(); flash('🗑️ 刪除成功')
     return redirect(url_for('admin_staff'))
 
 # ------------------------------------------------------------------
@@ -644,8 +685,9 @@ def admin_settings():
     conn = get_db(); cur = conn.cursor()
     if request.method == 'POST':
         pwd = request.form.get('password'); code = request.form.get('audit_code')
-        if pwd: cur.execute("UPDATE admin_users SET password=?, audit_code=? WHERE username='admin'", (pwd, code))
-        else: cur.execute("UPDATE admin_users SET audit_code=? WHERE username='admin'", (code,))
+        # ✅ FIX: ? -> %s
+        if pwd: cur.execute("UPDATE admin_users SET password=%s, audit_code=%s WHERE username='admin'", (pwd, code))
+        else: cur.execute("UPDATE admin_users SET audit_code=%s WHERE username='admin'", (code,))
         conn.commit(); flash('✅ 設定已更新'); conn.close(); return redirect(url_for('admin_settings'))
     cur.execute("SELECT * FROM admin_users WHERE username = 'admin'"); res = cur.fetchone(); admin_data = dict(res) if res else {'audit_code': '8888'}
     cur.execute("SELECT * FROM chains ORDER BY id"); chains = [dict(r) for r in cur.fetchall()]
@@ -659,14 +701,17 @@ def admin_settings():
 def admin_toggle_chain():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     cid = request.form.get('chain_id'); curr = request.form.get('current_status'); new_s = 0 if str(curr) == '1' else 1
-    conn = get_db(); cur = conn.cursor(); cur.execute("UPDATE chains SET status = ? WHERE id = ?", (new_s, cid)); conn.commit(); conn.close(); return redirect(url_for('admin_settings'))
+    # ✅ FIX: ? -> %s
+    conn = get_db(); cur = conn.cursor(); cur.execute("UPDATE chains SET status = %s WHERE id = %s", (new_s, cid)); conn.commit(); conn.close(); return redirect(url_for('admin_settings'))
 
 @app.route('/admin/settings/add_chain', methods=['POST'])
 def admin_add_chain():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     name = request.form.get('name'); logo = request.form.get('logo_url')
     conn = get_db(); cur = conn.cursor()
-    try: cur.execute("INSERT INTO chains (name, logo_url, status) VALUES (?, ?, 1)", (name, logo)); conn.commit(); flash(f'✅ 已新增 {name}')
+    try: 
+        # ✅ FIX: ? -> %s
+        cur.execute("INSERT INTO chains (name, logo_url, status) VALUES (%s, %s, 1)", (name, logo)); conn.commit(); flash(f'✅ 已新增 {name}')
     except Exception as e: flash(f'❌ 失敗: {str(e)}')
     conn.close(); return redirect(url_for('admin_settings'))
 
@@ -675,7 +720,9 @@ def admin_edit_chain():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     cid = request.form.get('chain_id'); name = request.form.get('name'); logo = request.form.get('logo_url')
     conn = get_db(); cur = conn.cursor()
-    try: cur.execute("UPDATE chains SET name=?, logo_url=? WHERE id=?", (name, logo, cid)); conn.commit(); flash(f'✅ 更新成功')
+    try: 
+        # ✅ FIX: ? -> %s
+        cur.execute("UPDATE chains SET name=%s, logo_url=%s WHERE id=%s", (name, logo, cid)); conn.commit(); flash(f'✅ 更新成功')
     except Exception as e: flash(f'❌ 失敗: {str(e)}')
     conn.close(); return redirect(url_for('admin_settings'))
 
@@ -683,7 +730,9 @@ def admin_edit_chain():
 def admin_settings_add_option():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     kind = request.form.get('kind'); name = request.form.get('name'); conn = get_db(); cur = conn.cursor()
-    try: cur.execute("INSERT INTO product_options (kind, name) VALUES (?, ?)", (kind, name)); conn.commit(); flash(f'✅ 已新增 {kind}')
+    try: 
+        # ✅ FIX: ? -> %s
+        cur.execute("INSERT INTO product_options (kind, name) VALUES (%s, %s)", (kind, name)); conn.commit(); flash(f'✅ 已新增 {kind}')
     except: flash('❌ 新增失敗')
     conn.close(); return redirect(url_for('admin_settings'))
 
@@ -693,10 +742,12 @@ def admin_settings_delete_option():
     oid = request.form.get('id'); kind = request.form.get('kind'); name = request.form.get('name'); conn = get_db(); cur = conn.cursor()
     if kind in ['category', 'spec', 'material', 'unit']:
         try:
-            cur.execute(f"SELECT COUNT(*) FROM products WHERE {kind} = ?", (name,))
+            # ✅ FIX: ? -> %s
+            cur.execute(f"SELECT COUNT(*) FROM products WHERE {kind} = %s", (name,))
             if cur.fetchone()[0] > 0: flash(f'🚫 無法刪除：尚有商品使用此選項'); conn.close(); return redirect(url_for('admin_settings'))
         except: pass
-    cur.execute("DELETE FROM product_options WHERE id = ?", (oid,)); conn.commit(); conn.close(); flash(f'🗑️ 已刪除'); return redirect(url_for('admin_settings'))
+    # ✅ FIX: ? -> %s
+    cur.execute("DELETE FROM product_options WHERE id = %s", (oid,)); conn.commit(); conn.close(); flash(f'🗑️ 已刪除'); return redirect(url_for('admin_settings'))
 
 @app.route('/admin/products')
 def admin_products():
@@ -711,28 +762,41 @@ def admin_products():
 @app.route('/admin/products/add', methods=['POST'])
 def admin_products_add():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    conn = get_db(); cur = conn.cursor(); cur.execute("INSERT INTO products (name, spec, material, category, keywords, capacity, unit) VALUES (?,?,?,?,?,?,?)", (request.form.get('name'), request.form.get('spec'), request.form.get('material'), request.form.get('category'), request.form.get('keywords'), request.form.get('capacity'), request.form.get('unit'))); conn.commit(); conn.close(); return redirect(url_for('admin_products'))
+    conn = get_db(); cur = conn.cursor(); 
+    # ✅ FIX: ? -> %s
+    cur.execute("INSERT INTO products (name, spec, material, category, keywords, capacity, unit) VALUES (%s,%s,%s,%s,%s,%s,%s)", 
+                (request.form.get('name'), request.form.get('spec'), request.form.get('material'), request.form.get('category'), request.form.get('keywords'), request.form.get('capacity'), request.form.get('unit')))
+    conn.commit(); conn.close(); return redirect(url_for('admin_products'))
 
 @app.route('/admin/products/edit', methods=['POST'])
 def admin_products_edit():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    conn = get_db(); cur = conn.cursor(); cur.execute("UPDATE products SET name=?, spec=?, material=?, category=?, keywords=?, capacity=?, unit=? WHERE id=?", (request.form.get('name'), request.form.get('spec'), request.form.get('material'), request.form.get('category'), request.form.get('keywords'), request.form.get('capacity'), request.form.get('unit'), request.form.get('product_id'))); conn.commit(); conn.close(); return redirect(url_for('admin_products'))
+    conn = get_db(); cur = conn.cursor(); 
+    # ✅ FIX: ? -> %s
+    cur.execute("UPDATE products SET name=%s, spec=%s, material=%s, category=%s, keywords=%s, capacity=%s, unit=%s WHERE id=%s", 
+                (request.form.get('name'), request.form.get('spec'), request.form.get('material'), request.form.get('category'), request.form.get('keywords'), request.form.get('capacity'), request.form.get('unit'), request.form.get('product_id')))
+    conn.commit(); conn.close(); return redirect(url_for('admin_products'))
 
 @app.route('/admin/products/delete', methods=['POST'])
 def admin_products_delete():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    conn = get_db(); cur = conn.cursor(); cur.execute("DELETE FROM products WHERE id = ?", (request.form.get('product_id'),)); conn.commit(); conn.close(); return redirect(url_for('admin_products'))
+    conn = get_db(); cur = conn.cursor(); 
+    # ✅ FIX: ? -> %s
+    cur.execute("DELETE FROM products WHERE id = %s", (request.form.get('product_id'),)); conn.commit(); conn.close(); return redirect(url_for('admin_products'))
 
 @app.route('/admin/products/toggle', methods=['POST'])
 def admin_products_toggle():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    curr = request.form.get('current_status'); new_s = 0 if str(curr) == '1' else 1; conn = get_db(); cur = conn.cursor(); cur.execute("UPDATE products SET status = ? WHERE id = ?", (new_s, request.form.get('product_id'))); conn.commit(); conn.close(); return redirect(url_for('admin_products'))
+    curr = request.form.get('current_status'); new_s = 0 if str(curr) == '1' else 1; conn = get_db(); cur = conn.cursor(); 
+    # ✅ FIX: ? -> %s
+    cur.execute("UPDATE products SET status = %s WHERE id = %s", (new_s, request.form.get('product_id'))); conn.commit(); conn.close(); return redirect(url_for('admin_products'))
 
 @app.route('/admin/analysis/dead_stock')
 def admin_dead_stock():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     conn = get_db(); cur = conn.cursor()
-    try: cur.execute("SELECT p.id, p.name, p.category, MAX(pr.update_time) as last_update FROM products p LEFT JOIN prices pr ON p.id = pr.product_id GROUP BY p.id HAVING last_update < date('now', '-30 days') OR last_update IS NULL ORDER BY last_update ASC"); products = [dict(r) for r in cur.fetchall()]
+    # ✅ FIX: SQLite date('now', '-30 days') -> Postgres CURRENT_DATE - interval '30 days'
+    try: cur.execute("SELECT p.id, p.name, p.category, MAX(pr.update_time) as last_update FROM products p LEFT JOIN prices pr ON p.id = pr.product_id GROUP BY p.id HAVING last_update < CURRENT_DATE - interval '30 days' OR last_update IS NULL ORDER BY last_update ASC"); products = [dict(r) for r in cur.fetchall()]
     except: products = []
     conn.close(); return render_template('admin/analysis.html', products=products, title="滯銷分析")
 
