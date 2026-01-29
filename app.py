@@ -324,9 +324,8 @@ def api_price_update():
         return jsonify({'status':'success', 'label': promo_label})
     except Exception as e: return jsonify({'status':'error', 'msg':str(e)}), 500
     finally: conn.close()
-
 # ----------------------------------------------------
-# 🛒 消費者搜尋 (V85.0 本地排序版)
+# 🛒 消費者搜尋 (V89.2: 恢復 GPS 與 ID 紀錄)
 # ----------------------------------------------------
 @app.route('/search')
 def consumer_search():
@@ -335,22 +334,31 @@ def consumer_search():
     target_chain_id = request.args.get('chain_id')
     target_category = request.args.get('category')
     pin_product_id = request.args.get('pin_id')
+    
+    # 🆕 新增：接收經緯度與 User ID
+    lat = request.args.get('lat', '')
+    lng = request.args.get('lng', '')
+    user_line_id = request.args.get('line_id', '')
 
     conn = get_db(); cur = conn.cursor()
     products_list = []
     
-    # 流量清洗
+    # 流量清洗與紀錄 (V89.2: 完整記錄人事時地物)
     if keyword and len(keyword) > 0:
         try: 
-            # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
-            cur.execute("INSERT INTO search_logs (keyword, log_time) VALUES (%s, CURRENT_TIMESTAMP + interval '8 hours')", (keyword,))
+            # ✅ FIX: 寫入 keyword, lat, lng, line_id
+            # 注意：這裡假設資料庫已有 lat, lng 欄位 (您剛確認過有了)
+            cur.execute("""
+                INSERT INTO search_logs (keyword, line_id, lat, lng, log_time) 
+                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP + interval '8 hours')
+            """, (keyword, user_line_id, lat, lng))
             conn.commit()
-        except: pass
+        except Exception as e: 
+            print(f"Log Error: {e}") # 偷印錯誤避免當機
 
     # 1. 智慧分類鎖定
     if pin_product_id and not target_category:
         try:
-            # ✅ FIX: ? -> %s
             cur.execute("SELECT category FROM products WHERE id = %s", (pin_product_id,))
             res = cur.fetchone()
             if res: target_category = dict(res)['category']
@@ -371,14 +379,13 @@ def consumer_search():
     # 3. 撈產品
     cols = "id, name, spec, material, category, keywords, priority, image_url, capacity, unit"
     if mode == 'store_shelf' and target_chain_id:
-        # ✅ FIX: ? -> %s
         if target_category: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 AND category = %s ORDER BY priority DESC, id", (target_category,))
         else: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 ORDER BY category, priority DESC, id")
     else:
         cur.execute(f"SELECT {cols} FROM products WHERE status = 1 ORDER BY priority DESC, category, id")
     products_rows = cur.fetchall()
     
-    # 4. 撈價格 (全網撈取以計算霸主)
+    # 4. 撈價格
     sql_prices = """
         SELECT p.product_id, p.price, p.base_price, p.promo_label, p.update_time, 
                c.name as chain_name, c.id as chain_id, c.logo_url as chain_logo 

@@ -125,13 +125,25 @@
 <body>
 
 <div class="search-header">
-    <form action="/search" method="GET" id="searchForm" class="d-flex gap-2">
-        <a href="/search" class="btn btn-light border rounded-circle" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;"><i class="bi bi-house-door-fill"></i></a>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="/search" class="btn btn-light border rounded-circle" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <i class="bi bi-house-door-fill"></i>
+        </a>
+        
         <div class="position-relative flex-grow-1">
             <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-secondary"></i>
-            <input type="search" name="keyword" class="form-control search-input ps-5" placeholder="找商品 (例: 百威)" value="{{ search_keyword }}">
+            <input type="text" 
+                   id="searchInput" 
+                   class="form-control search-input ps-5" 
+                   placeholder="找商品 (例: 百威)" 
+                   value="{{ search_keyword }}" 
+                   onkeypress="handleEnter(event)">
         </div>
-    </form>
+
+        <button type="button" class="btn btn-primary rounded-circle" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="performSearch()">
+            <i class="bi bi-search"></i>
+        </button>
+    </div>
 </div>
 
 <div id="store-cat-bar" class="store-cat-bar d-none"></div>
@@ -371,6 +383,60 @@
         });
         container.innerHTML = html;
     }
+// 🚀 V89.2 補強：搜尋與 GPS 定位邏輯
+    function performSearch() {
+        // 1. 抓取輸入框 (等等會去設定這個 ID)
+        const input = document.getElementById('searchInput');
+        if (!input) {
+            console.error("錯誤：找不到搜尋框 (searchInput)");
+            return;
+        }
+        
+        const query = input.value.trim();
+        if (!query) return; // 沒字就不搜
+
+        // 2. 準備參數
+        let url = `/search?keyword=${encodeURIComponent(query)}`;
+
+        // 3. 嘗試抓取 User ID (如果有的話)
+        try {
+            if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
+                liff.getProfile().then(profile => {
+                    url += `&line_id=${profile.userId}`;
+                    executeRedirect(url); // 抓到 ID 就執行
+                }).catch(() => executeRedirect(url));
+            } else {
+                executeRedirect(url); // 沒 ID 也執行
+            }
+        } catch (e) {
+            executeRedirect(url);
+        }
+    }
+
+    // 執行帶有 GPS 的跳轉
+    function executeRedirect(baseUrl) {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    // 有 GPS：帶上經緯度
+                    window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
+                },
+                (err) => {
+                    // 沒 GPS：直接跳轉
+                    console.log("GPS無法取得:", err);
+                    window.location.href = baseUrl;
+                },
+                { timeout: 3000 } // 最多等 3 秒
+            );
+        } else {
+            window.location.href = baseUrl;
+        }
+    }
+
+    // 讓 Enter 鍵也能搜尋
+    function handleEnter(event) {
+        if (event.key === 'Enter') performSearch();
+    }    
 </script>
 
 </body>
