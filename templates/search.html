@@ -157,21 +157,32 @@
             }
             renderSearchResults(container);
         } else {
-            // ✅ 新邏輯：啟動機器人與自動跳轉
-            const modal = document.getElementById('notFoundRedirect');
-            if (modal) {
-                // 1. 顯示遮罩
-                modal.classList.remove('d-none');
-                
-                // 2. 稍微延遲讓透明度動畫生效
-                setTimeout(() => { modal.style.opacity = '1'; }, 50);
+            // ✅ 新邏輯：保留搜尋列，將機器人顯示在原本的商品區塊中
+            container.innerHTML = `
+                <div class="d-flex flex-column align-items-center justify-content-center pt-5 mt-5">
+                    <div class="text-center mb-3 animate__animated animate__bounceIn">
+                        <i class="bi bi-robot text-primary" style="font-size: 5rem;"></i>
+                    </div>
+                    <h3 class="fw-bold text-dark mb-2">找不到相關商品 🥺</h3>
+                    <p class="text-secondary mb-4">別擔心，助手正在幫您重整...</p>
+                    
+                    <div class="d-flex align-items-center text-primary fw-bold mb-4 bg-primary bg-opacity-10 px-4 py-2 rounded-pill">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        <span id="countdownText">3 秒後自動回大廳</span>
+                    </div>
 
-                // 3. 設定 3 秒後跳轉回大廳
-                setTimeout(() => {
-                    // 清空搜尋參數，直接回首頁 (即大廳)
-                    window.location.href = '/search'; 
-                }, 3000);
-            }
+                    <a href="/search" class="btn btn-outline-primary rounded-pill px-4 shadow-sm">
+                        <i class="bi bi-arrow-left me-2"></i>不等了，直接回大廳
+                    </a>
+                </div>
+            `;
+
+            // 設定 3 秒後自動跳轉
+            const timer = setTimeout(() => {
+                window.location.href = '/search'; 
+            }, 3000);
+            
+            // 如果使用者在 3 秒內自己按了搜尋或其他按鈕，這個 timer 其實不會有影響，因為頁面已經跳轉了
         }
     };
 
@@ -361,18 +372,6 @@
         container.innerHTML = html;
     }
 </script>
-<div id="notFoundRedirect" class="d-none position-fixed top-0 start-0 w-100 h-100 bg-white d-flex flex-column align-items-center justify-content-center" style="z-index: 9999; opacity: 0; transition: opacity 0.5s;">
-    <div class="text-center mb-3">
-        <i class="bi bi-robot text-primary" style="font-size: 6rem;"></i>
-    </div>
-    <h3 class="fw-bold text-dark mb-2">找不到相關商品 🥺</h3>
-    <p class="text-secondary mb-4">別擔心，帶您回大廳重新逛逛...</p>
-    
-    <div class="d-flex align-items-center text-primary fw-bold">
-        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-        <span>3 秒後自動跳轉</span>
-    </div>
-</div>
 
 </body>
 </html>
