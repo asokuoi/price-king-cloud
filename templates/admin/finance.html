@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>💰 資金核銷報表</h2>
+    <div class="text-end">
+        <small class="text-muted d-block">預估總庫存價值</small>
+        <span class="h3 fw-bold text-success">${{ total_val | int }}</span>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white py-3">
+        <h5 class="m-0 text-secondary"><i class="bi bi-cash-coin me-2"></i>商品均價與核銷參考</h5>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th class="ps-4">商品分類</th>
+                    <th>商品名稱</th>
+                    <th>最低市價</th>
+                    <th>最高市價</th>
+                    <th>平均核銷價</th>
+                    <th class="text-end pe-4">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if items %}
+                    {% for item in items %}
+                    <tr>
+                        <td class="ps-4 text-muted">{{ item.category }}</td>
+                        <td class="fw-bold">{{ item.name }}</td>
+                        <td class="text-success">${{ item.min_price }}</td>
+                        <td class="text-danger">${{ item.max_price }}</td>
+                        <td class="fw-bold text-primary bg-primary bg-opacity-10">${{ item.avg_price | round(1) }}</td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-dark">明細</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr><td colspan="6" class="text-center py-5 text-muted">尚無價格數據，請先去前台搜尋商品以建立價格庫。</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

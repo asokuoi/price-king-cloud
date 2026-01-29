@@ -1,0 +1,162 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-0 fw-bold">📊 營運戰情室</h2>
+        <small class="text-muted">流量監控 x 異常抓鬼</small>
+    </div>
+    <div class="text-end">
+        <span class="badge bg-dark p-2">數據更新：即時</span>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1 opacity-75">🔥 今日搜尋熱度</h6>
+                        <h2 class="mb-0 fw-bold">{{ data.today_search }}</h2>
+                        <small class="opacity-50">次查詢請求</small>
+                    </div>
+                    <i class="bi bi-activity fs-1 opacity-25"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #2af598 0%, #009efd 100%); color: white;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1 opacity-75">📦 線上商品數</h6>
+                        <h2 class="mb-0 fw-bold">{{ data.product_count }}</h2>
+                        <small class="opacity-50">SKU</small>
+                    </div>
+                    <i class="bi bi-box-seam fs-1 opacity-25"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); color: white;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1 opacity-75">🏪 合作通路</h6>
+                        <h2 class="mb-0 fw-bold">{{ data.store_count }}</h2>
+                        <small class="opacity-50">家</small>
+                    </div>
+                    <i class="bi bi-shop fs-1 opacity-25"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="mb-1 opacity-75">👥 查價部隊</h6>
+                        <h2 class="mb-0 fw-bold">{{ data.staff_count }}</h2>
+                        <small class="opacity-50">人</small>
+                    </div>
+                    <i class="bi bi-people fs-1 opacity-25"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                <span class="fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i> 異常回報監控</span>
+                <span class="badge bg-white text-danger">刷單預警</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="alert alert-light border-bottom mb-0 small text-muted">
+                    <i class="bi bi-info-circle me-1"></i> 監控條件：同一人對同一商品單日回報 <strong>≥ 2次</strong>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>員工姓名</th>
+                                <th>商品名稱</th>
+                                <th>通路</th>
+                                <th class="text-center">次數</th>
+                                <th class="text-end">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if abnormal_list %}
+                                {% for item in abnormal_list %}
+                                <tr>
+                                    <td class="fw-bold text-primary">{{ item.staff_name }}</td>
+                                    <td>{{ item.product_name }}</td>
+                                    <td><span class="badge bg-secondary">{{ item.chain_name }}</span></td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger rounded-pill">{{ item.cnt }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        <a href="/admin/audit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-search"></i> 稽核
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5 text-muted">
+                                        <i class="bi bi-check-circle-fill text-success fs-1"></i>
+                                        <p class="mt-2 mb-0">今日無異常回報</p>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-info text-white">
+                <span class="fw-bold"><i class="bi bi-search me-2"></i> 即時搜尋流 (最近10筆)</span>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% if recent_searches %}
+                        {% for s in recent_searches %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-clock-history text-muted me-2 small"></i>
+                                <span class="fw-bold text-dark">{{ s.keyword }}</span>
+                            </div>
+                            <span class="text-muted small" style="font-size: 0.8rem;">
+                                {{ s.log_time.split(' ')[1][:5] }} </span>
+                        </li>
+                        {% endfor %}
+                    {% else %}
+                        <div class="text-center p-5 text-muted">
+                            <i class="bi bi-hourglass-split fs-1"></i>
+                            <p class="mt-2 mb-0">等待今日流量...</p>
+                        </div>
+                    {% endif %}
+                </ul>
+            </div>
+            <div class="card-footer bg-light text-center small text-muted">
+                這是市場目前的真實需求
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

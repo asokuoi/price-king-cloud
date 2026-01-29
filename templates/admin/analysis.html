@@ -1,0 +1,58 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3>📉 滯銷分析室 (Dead Stock)</h3>
+        <p class="text-muted mb-0">列出「目前上架中」但「近期無人搜尋」的商品，建議定期清理。</p>
+    </div>
+    <div class="text-end">
+        <span class="badge bg-danger fs-6">{{ dead_stock|length }} 筆待處理</span>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        {% if dead_stock %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">商品名稱</th>
+                        <th>規格/材質</th>
+                        <th>分類</th>
+                        <th class="text-end pe-4">決策</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in dead_stock %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-secondary">{{ p.name }}</td>
+                        <td><small>{{ p.spec }} / {{ p.material }}</small></td>
+                        <td><span class="badge bg-light text-dark border">{{ p.category }}</span></td>
+                        <td class="text-end pe-4">
+                            <form action="/admin/products/toggle" method="POST">
+                                <input type="hidden" name="product_id" value="{{ p.id }}">
+                                <input type="hidden" name="current_status" value="1">
+                                <button type="submit" class="btn btn-outline-danger btn-sm px-3" title="下架此商品">
+                                    <i class="bi bi-arrow-down-circle me-1"></i> 下架
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center p-5">
+            <div class="mb-3">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+            </div>
+            <h5>完美！沒有滯銷商品</h5>
+            <p class="text-muted">所有上架商品近期都有搜尋紀錄。</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

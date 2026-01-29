@@ -1,0 +1,102 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3 class="fw-bold"><i class="bi bi-journal-text me-2"></i> 戰情勾稽室</h3>
+    
+    <div class="d-flex gap-2 bg-white p-2 rounded shadow-sm border">
+        <form action="/admin/audit" method="GET" class="d-flex gap-2 align-items-center">
+            <label class="fw-bold text-muted small">查詢日期：</label>
+            <input type="date" name="query_date" class="form-control form-control-sm" value="{{ current_date }}" required>
+            <button type="submit" class="btn btn-sm btn-primary text-nowrap">
+                <i class="bi bi-search"></i> 查詢
+            </button>
+        </form>
+        <button class="btn btn-sm btn-outline-secondary" onclick="location.href='/admin/audit'">
+            今天
+        </button>
+    </div>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <span>📅 {{ current_date }} 足跡紀錄</span>
+        <span class="badge bg-light text-dark">{{ logs|length }} 筆</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">時間</th>
+                        <th>員工 (ID)</th>
+                        <th>通路 / 商品</th>
+                        <th>修改內容 (促銷)</th>
+                        <th class="text-center">狀態</th>
+                        <th class="text-end pe-4">人工執法</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if logs %}
+                        {% for log in logs %}
+                        <tr class="{{ 'table-active opacity-50' if log.status == 0 else '' }}">
+                            <td class="ps-4 text-muted small font-monospace">
+                                {{ log.log_time.split(' ')[1] }}
+                            </td>
+                            <td>
+                                <span class="fw-bold">{{ log.staff_name }}</span>
+                                <br><small class="text-muted font-monospace" style="font-size: 0.75rem;">...{{ log.staff_line_id[-6:] }}</small>
+                            </td>
+                            <td>
+                                <div class="fw-bold text-primary">{{ log.product_name }}</div>
+                                <small class="badge bg-light text-dark border">{{ log.chain_name }}</small>
+                            </td>
+                            <td>
+                                <span class="fs-5 fw-bold text-success">${{ log.new_price }}</span>
+                                {% if log.promo_label %}
+                                    <span class="badge bg-warning text-dark ms-2">{{ log.promo_label }}</span>
+                                {% else %}
+                                    <span class="badge bg-secondary ms-2 text-opacity-50">原價</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if log.status == 1 %}
+                                    <span class="badge bg-success">有效</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">已作廢</span>
+                                    {% if log.is_paid == 0 %}
+                                    <br><small class="text-danger" style="font-size: 0.7rem;">(獎金已收回)</small>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                {% if log.status == 1 %}
+                                    <form action="/admin/audit/toggle" method="POST" class="d-inline" 
+                                          onsubmit="return confirm('⚠️ 確定要作廢這筆紀錄嗎？\n\n1. 此價格將不列入比價\n2. 該員工將被扣除 $5 (若錢包足夠)');">
+                                        <input type="hidden" name="log_id" value="{{ log.id }}">
+                                        <input type="hidden" name="return_date" value="{{ current_date }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-x-circle"></i> 作廢
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    <button class="btn btn-sm btn-light text-muted border" disabled>無效紀錄</button>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="bi bi-clipboard-check fs-1 d-block mb-3 opacity-25"></i>
+                                <h5>查無資料</h5>
+                                <p class="mb-0">該日期沒有任何盤點紀錄。</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

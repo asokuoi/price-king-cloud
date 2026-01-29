@@ -1,0 +1,357 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+
+<style>
+    :root {
+        --primary-bg: #f8f9fc;
+        --card-border: #e3e6f0;
+        --text-dark: #3a3b45;
+        --text-muted: #858796;
+    }
+    
+    body { background-color: var(--primary-bg); font-family: 'Nunito', system-ui, sans-serif; }
+
+    /* 頂部標題區 */
+    .page-header {
+        background: white; padding: 20px 25px; border-radius: 15px;
+        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.05);
+        margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;
+    }
+
+    /* 數據表格卡片 */
+    .dashboard-card {
+        background: white; border: none; border-radius: 15px;
+        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.08);
+        overflow: hidden;
+    }
+
+    /* 表格樣式優化 */
+    .table thead th {
+        background-color: #f8f9fc; color: #4e73df; font-weight: 700;
+        text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em;
+        border-bottom: 2px solid #e3e6f0; padding: 15px;
+    }
+    .table tbody td { padding: 15px; vertical-align: middle; color: #5a5c69; }
+    .table-hover tbody tr:hover { background-color: #f8f9fc; transition: 0.2s; }
+
+    /* 虛擬頭像 */
+    .avatar-circle {
+        width: 40px; height: 40px; background-color: #4e73df; color: white;
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-weight: bold; font-size: 1.1rem; margin-right: 12px;
+        position: relative;
+    }
+    .status-dot {
+        width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;
+        position: absolute; bottom: 0; right: 0;
+    }
+
+    /* 數據膠囊 */
+    .data-pill {
+        display: inline-flex; flex-direction: column; align-items: center;
+        padding: 5px 10px; border-radius: 8px; background: #f8f9fc; min-width: 70px;
+    }
+    .data-pill .label { font-size: 0.65rem; color: #a0a0a0; text-transform: uppercase; margin-bottom: 2px; }
+    .data-pill .value { font-weight: 800; font-size: 1rem; color: #5a5c69; }
+
+    /* 待核銷強調 */
+    .unpaid-box {
+        background: #fff3cd; color: #856404; border: 1px solid #ffeeba;
+        border-radius: 10px; padding: 5px 15px; text-align: center; display: inline-block;
+    }
+    
+    /* 錢包金額 */
+    .wallet-amount { font-family: 'Consolas', monospace; font-weight: 700; font-size: 1.2rem; }
+    .text-money { color: #1cc88a; }
+
+    /* 🔥 操作按鈕群 (修正對齊問題) */
+    .action-btn-group {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 5px; /* 按鈕間距 */
+    }
+    .action-btn-group .btn {
+        border-radius: 50px; 
+        width: 32px; height: 32px; /* 固定寬高 */
+        padding: 0; /* 清除 padding */
+        display: inline-flex; /* 彈性盒子 */
+        align-items: center; /* 垂直置中 */
+        justify-content: center; /* 水平置中 */
+        font-size: 0.9rem;
+    }
+    /* 讓核銷按鈕寬一點，因為有文字 */
+    .action-btn-group .btn-payout {
+        width: auto; padding: 0 12px; height: 32px;
+    }
+</style>
+
+<div class="page-header">
+    <div>
+        <h4 class="mb-1 fw-bold text-dark"><i class="bi bi-people-fill text-primary me-2"></i>員工薪資管理</h4>
+        <div class="text-muted small">績效監控 / 獎金核算中心</div>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-light text-secondary border fw-bold" onclick="location.reload()">
+            <i class="bi bi-arrow-repeat"></i> 刷新
+        </button>
+        <button class="btn btn-primary fw-bold px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#addStaffModal">
+            <i class="bi bi-plus-lg"></i> 新增員工
+        </button>
+    </div>
+</div>
+
+<div class="dashboard-card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th class="ps-4">員工資訊</th>
+                    <th>所屬單位</th>
+                    <th class="text-center">歷史績效</th>
+                    <th class="text-center">待核銷 (筆數)</th>
+                    <th class="text-end">應發獎金</th>
+                    <th class="text-end pe-4">管理操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in staff_list %}
+                <tr>
+                    <td class="ps-4">
+                        <div class="d-flex align-items-center">
+                            <div class="avatar-circle" style="background-color: {{ 'gray' if s.status == 0 else '#4e73df' }}">
+                                {{ s.name[0] }}
+                                <div class="status-dot" style="background-color: {{ '#1cc88a' if s.status == 1 else '#e74a3b' }}"></div>
+                            </div>
+                            <div>
+                                <div class="fw-bold text-dark">{{ s.name }}</div>
+                                <div class="text-muted small font-monospace" style="font-size: 0.75rem;">
+                                    <i class="bi bi-person-badge"></i> {{ s.line_id[:8] }}...
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td>
+                        {% if s.chain_name %}
+                            <div class="badge bg-light text-dark border px-3 py-2 rounded-pill">
+                                <i class="bi bi-shop me-1"></i> {{ s.chain_name }}
+                            </div>
+                        {% else %}
+                            <span class="badge bg-secondary rounded-pill">自由人</span>
+                        {% endif %}
+                        <div class="small text-muted mt-1 ms-2">Lv.{{ s.level }}</div>
+                    </td>
+
+                    <td class="text-center">
+                        <div class="d-flex justify-content-center gap-2">
+                            <div class="data-pill">
+                                <span class="label">總更新</span>
+                                <span class="value">{{ s.total_logs }}</span>
+                            </div>
+                            <div class="data-pill">
+                                <span class="label">有效</span>
+                                <span class="value text-primary">{{ s.valid_logs }}</span>
+                            </div>
+                        </div>
+                    </td>
+
+                    <td class="text-center">
+                        {% if s.unpaid_logs > 0 %}
+                            <div class="unpaid-box shadow-sm">
+                                <i class="bi bi-exclamation-circle-fill me-1"></i>
+                                <strong>{{ s.unpaid_logs }}</strong> 筆
+                            </div>
+                        {% else %}
+                            <span class="text-muted opacity-50"><i class="bi bi-check-circle"></i> 已結清</span>
+                        {% endif %}
+                    </td>
+
+                    <td class="text-end">
+                        {% if s.calc_wallet > 0 %}
+                            <div class="wallet-amount text-money">${{ s.calc_wallet }}</div>
+                        {% else %}
+                            <div class="wallet-amount text-muted opacity-25">$0</div>
+                        {% endif %}
+                    </td>
+
+                    <td class="text-end pe-4">
+                        <div class="action-btn-group">
+                            <button class="btn btn-outline-secondary" 
+                                    onclick="editStaff('{{ s.line_id }}', '{{ s.name }}', '{{ s.level }}', '{{ s.chain_id }}', '{{ s.status }}')"
+                                    title="編輯與停權">
+                                <i class="bi bi-pencil-fill"></i>
+                            </button>
+                            
+                            {% if s.calc_wallet > 0 %}
+                            <form action="/admin/staff/payout" method="POST" class="d-inline" 
+                                  onsubmit="return confirm('💰 核銷確認：\n\n員工：{{ s.name }}\n金額：${{ s.calc_wallet }}\n筆數：{{ s.unpaid_logs }} 筆\n\n確定核銷並歸零嗎？');">
+                                <input type="hidden" name="line_id" value="{{ s.line_id }}">
+                                <button type="submit" class="btn btn-success shadow-sm btn-payout">
+                                    <i class="bi bi-cash-stack me-1"></i> 核銷
+                                </button>
+                            </form>
+                            {% else %}
+                                <button class="btn btn-light text-muted border btn-payout" disabled>
+                                    <i class="bi bi-check2 me-1"></i> 結清
+                                </button>
+                            {% endif %}
+                            
+                            <form action="/admin/staff/delete" method="POST" class="d-inline" 
+                                  onsubmit="return confirm('⚠️ 危險操作！\n\n確定要刪除員工 [ {{ s.name }} ] 嗎？\n此操作無法復原！');">
+                                <input type="hidden" name="line_id" value="{{ s.line_id }}">
+                                <button type="submit" class="btn btn-outline-danger border-0" title="刪除員工">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                
+                {% if not staff_list %}
+                <tr>
+                    <td colspan="6" class="text-center py-5 text-muted">
+                        <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" width="64" class="mb-3 opacity-50">
+                        <p>目前沒有員工資料</p>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="addStaffModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-person-plus"></i> 新增員工</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/admin/staff/add" method="POST">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-secondary">LINE User ID</label>
+                        <input type="text" name="line_id" class="form-control" placeholder="Uxxxxxxxx..." required>
+                        <div class="form-text">請貼上從 LINE Developers 取得的 User ID</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-secondary">真實姓名</label>
+                        <input type="text" name="name" class="form-control" placeholder="例如：王小明" required>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary">權限等級</label>
+                            <select name="level" class="form-select">
+                                <option value="1">Lv.1 店員 (基本)</option>
+                                <option value="2">Lv.2 店長 (進階)</option>
+                                <option value="3">Lv.3 督導 (高階)</option>
+                                <option value="9">Lv.9 管理員</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary">綁定通路</label>
+                            <select name="chain_id" class="form-select">
+                                <option value="-1">-- 自由人 (不綁定) --</option>
+                                {% for c in chains %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">確認新增</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="editStaffModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square"></i> 編輯員工資料</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/admin/staff/edit" method="POST">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="original_line_id" id="edit_original_line_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-secondary">LINE User ID (可修改)</label>
+                        <input type="text" name="new_line_id" id="edit_new_line_id" class="form-control font-monospace" required>
+                        <div class="form-text text-danger"><i class="bi bi-exclamation-circle"></i> 注意：修改 ID 會一併轉移該員工的歷史績效。</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-secondary">姓名</label>
+                        <input type="text" name="name" id="edit_name" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3 p-3 bg-light rounded border">
+                        <label class="form-label fw-bold text-secondary d-block">帳號狀態</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="status" id="status_active" value="1">
+                            <label class="btn btn-outline-success" for="status_active"><i class="bi bi-check-circle"></i> 正常啟用</label>
+                            
+                            <input type="radio" class="btn-check" name="status" id="status_banned" value="0">
+                            <label class="btn btn-outline-danger" for="status_banned"><i class="bi bi-slash-circle"></i> 停權封鎖</label>
+                        </div>
+                        <div class="form-text mt-2">如員工離職或違規，請選擇停權。</div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary">權限等級</label>
+                            <select name="level" id="edit_level" class="form-select">
+                                <option value="1">Lv.1 店員</option>
+                                <option value="2">Lv.2 店長</option>
+                                <option value="3">Lv.3 督導</option>
+                                <option value="9">Lv.9 Admin</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-secondary">綁定通路</label>
+                            <select name="chain_id" id="edit_chain_id" class="form-select">
+                                <option value="-1">-- 自由人 --</option>
+                                {% for c in chains %}
+                                <option value="{{ c.id }}">{{ c.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-dark px-4 fw-bold">儲存變更</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function editStaff(lid, name, lvl, cid, status) {
+        // 填入舊 ID (隱藏欄位)
+        document.getElementById('edit_original_line_id').value = lid;
+        // 填入新 ID (顯示欄位，預設等於舊 ID)
+        document.getElementById('edit_new_line_id').value = lid; 
+        
+        document.getElementById('edit_name').value = name;
+        document.getElementById('edit_level').value = lvl;
+        document.getElementById('edit_chain_id').value = (cid && cid != 'None') ? cid : -1;
+        
+        if(status == 0) {
+            document.getElementById('status_banned').checked = true;
+        } else {
+            document.getElementById('status_active').checked = true;
+        }
+        
+        new bootstrap.Modal(document.getElementById('editStaffModal')).show();
+    }
+</script>
+{% endblock %}

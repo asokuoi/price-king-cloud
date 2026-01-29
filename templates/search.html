@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>價格王 Price King</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f2f4f8; padding-bottom: 80px; }
+        
+        /* 搜尋列 */
+        .search-header { background: #fff; position: sticky; top: 0; z-index: 1000; padding: 12px 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .search-input { border-radius: 50px; background: #f0f2f5; border: none; height: 40px; font-weight: 500; }
+        
+        /* 店內分類 Bar */
+        .store-cat-bar { 
+            white-space: nowrap; overflow-x: auto; padding: 10px 15px; 
+            background: #fff; border-bottom: 1px solid #eee; 
+            position: sticky; top: 66px; z-index: 990; 
+            display: flex; gap: 8px; scrollbar-width: none;
+        }
+        .store-cat-bar::-webkit-scrollbar { display: none; }
+        .cat-pill { 
+            display: inline-block; padding: 6px 14px; border-radius: 20px; 
+            background: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6;
+            font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
+        }
+        .cat-pill.active { 
+            background: #0d6efd; color: white; border-color: #0d6efd; 
+            box-shadow: 0 2px 6px rgba(13, 110, 253, 0.3); 
+        }
+
+        /* 店鋪標題與導航 */
+        .store-header-info {
+            padding: 15px 15px 5px 15px; display: flex; justify-content: space-between; align-items: center;
+        }
+        .store-title { font-weight: 800; color: #212529; font-size: 1.3rem; display: flex; align-items: center; gap: 8px; }
+        
+        /* 📍 導航按鈕 */
+        .nav-btn {
+            background-color: #e9f7ef; color: #198754; border: 1px solid #d1e7dd;
+            padding: 6px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 700;
+            text-decoration: none; display: flex; align-items: center; gap: 6px;
+            transition: all 0.2s;
+        }
+        .nav-btn:active { transform: scale(0.95); background-color: #198754; color: white; }
+
+        /* 商品卡片 */
+        .product-card { background: #fff; border-radius: 16px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid #eee; position: relative; }
+        
+        /* 🔵 藍框 */
+        .product-card.pinned-card { border: 2px solid #0d6efd; background: #f8fbff; box-shadow: 0 4px 15px rgba(13, 110, 253, 0.15); }
+        /* 👑 金框 */
+        .product-card.king-card { border: 2px solid #ffc107; background: linear-gradient(180deg, #fffdf5 0%, #fff 100%); box-shadow: 0 4px 15px rgba(255, 193, 7, 0.15); }
+        /* 🔥 雙重霸主 */
+        .product-card.super-king-card { 
+            border: 3px solid transparent; 
+            background: linear-gradient(#fff, #fff) padding-box, linear-gradient(135deg, #0d6efd 0%, #FFD700 100%) border-box; 
+            box-shadow: 0 4px 20px rgba(255, 215, 0, 0.25);
+        }
+
+        .p-header { padding: 15px; border-bottom: 1px solid #f8f9fa; display: flex; justify-content: space-between; align-items: flex-start; }
+        .p-name { font-weight: 700; font-size: 1.1rem; color: #212529; line-height: 1.3; }
+        
+        .p-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .btn-search-item {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 50%; 
+            background-color: #f1f3f5; color: #6c757d; border: 1px solid #dee2e6; 
+            text-decoration: none; flex-shrink: 0; transition: all 0.2s;
+        }
+        .btn-search-item:active { background-color: #0d6efd; color: white; border-color: #0d6efd; }
+
+        .p-meta { font-size: 0.95rem; color: #555; font-weight: 700; display: flex; align-items: center; gap: 6px; } 
+        .p-spec-badge { background-color: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 6px; font-size: 0.9rem; font-weight: 800; border: 1px solid #dee2e6; }
+        .p-badge { font-size: 0.85rem; background: #e7f5ff; color: #004085; padding: 4px 10px; border-radius: 6px; font-weight: 700; white-space: nowrap; border: none; }
+
+        .price-item { padding: 12px 15px; border-bottom: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center; }
+        .price-item:last-child { border-bottom: none; }
+        .price-item.king-row { background: linear-gradient(to right, #fffdf5, #fff); border: 2px solid #ffc107; border-radius: 12px; margin: 10px; padding: 15px; box-shadow: 0 4px 10px rgba(255, 193, 7, 0.15); }
+
+        .king-badge { display: inline-block; background: #FFD700; color: #000; font-size: 0.75rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; margin-bottom: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .pinned-badge { display: inline-block; background: #0d6efd; color: #fff; font-size: 0.75rem; font-weight: 800; padding: 3px 10px; border-radius: 20px; margin-bottom: 8px; box-shadow: 0 2px 4px rgba(13, 110, 253, 0.2); }
+        /* 🔥 超級霸主標籤 */
+        .super-badge { 
+            display: inline-block; 
+            background: linear-gradient(90deg, #0d6efd, #FFD700); color: #fff; 
+            font-size: 0.8rem; font-weight: 900; padding: 4px 12px; 
+            border-radius: 20px; margin-bottom: 8px; 
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2); text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .king-icon { color: #b78900 !important; margin-right: 4px; font-size: 0.9rem; } 
+        .chain-link { color: #212529; font-weight: 700; text-decoration: none; font-size: 1rem; display: flex; align-items: center; }
+        .chain-logo { width: 24px; height: 24px; border-radius: 6px; margin-right: 8px; object-fit: contain; border: 1px solid #f0f0f0; }
+
+        .right-price { text-align: right; display: flex; flex-direction: column; align-items: flex-end; min-width: 120px; }
+        .price-top-row { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; margin-bottom: 4px; width: 100%; }
+        .price-val { font-weight: 900; font-size: 1.5rem; color: #dc3545; line-height: 1; letter-spacing: -0.5px; }
+        .origin-price { text-decoration: line-through; color: #adb5bd; font-size: 0.8rem; }
+        .promo-tag { font-size: 0.75rem; color: #856404; background-color: #fff3cd; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
+
+        .bottom-info { display: flex; align-items: center; justify-content: flex-end; gap: 8px; width: 100%; }
+        .cp-box-king { background-color: #fff3cd; color: #000; font-size: 0.85rem; font-weight: 800; padding: 3px 8px; border-radius: 6px; display: inline-flex; align-items: center; }
+        .cp-box-normal { background-color: #f8f9fa; color: #6c757d; font-size: 0.8rem; font-weight: 500; padding: 2px 6px; border-radius: 6px; display: inline-flex; align-items: center; }
+        .time-text { font-size: 0.75rem; color: #adb5bd; }
+
+        /* 分類標題 */
+        .category-header { 
+            padding: 20px 15px 10px 15px; font-weight: 800; color: #495057; font-size: 1.2rem; 
+            display: flex; align-items: center; background: #f2f4f8;
+        }
+        .category-header::before { content: ''; display: inline-block; width: 5px; height: 20px; background: #0d6efd; margin-right: 10px; border-radius: 4px; }
+
+        /* 大廳 */
+        .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; }
+        .cat-item { text-align: center; }
+        .cat-icon { width: 50px; height: 50px; background: #fff; border-radius: 16px; margin: 0 auto 5px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .cat-text { font-size: 0.8rem; color: #555; }
+    </style>
+</head>
+<body>
+
+<div class="search-header">
+    <form action="/search" method="GET" id="searchForm" class="d-flex gap-2">
+        <a href="/search" class="btn btn-light border rounded-circle" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;"><i class="bi bi-house-door-fill"></i></a>
+        <div class="position-relative flex-grow-1">
+            <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-secondary"></i>
+            <input type="search" name="keyword" class="form-control search-input ps-5" placeholder="找商品 (例: 百威)" value="{{ search_keyword }}">
+        </div>
+    </form>
+</div>
+
+<div id="store-cat-bar" class="store-cat-bar d-none"></div>
+
+<div id="main-content" class="container pt-3"></div>
+
+<script>
+    const products = {{ products_data | safe if products_data else '[]' }};
+    const lobbyData = {{ lobby_data | safe }};
+    const currentKeyword = "{{ search_keyword }}";
+    const currentMode = "{{ search_mode }}";
+    const pinId = "{{ pin_id }}";
+
+    let activeStoreCategory = 'all';
+
+    window.onload = function() {
+        const container = document.getElementById('main-content');
+        if (!currentKeyword && !currentMode) {
+            renderLobby(container);
+        } else if (products.length > 0) {
+            if (currentMode === 'store_shelf') {
+                initStoreCategoryBar();
+            }
+            renderSearchResults(container);
+        } else {
+            container.innerHTML = `<div class="text-center py-5 text-muted"><i class="bi bi-search fs-1"></i><p class="mt-3">找不到商品</p></div>`;
+        }
+    };
+
+    function initStoreCategoryBar() {
+        const cats = [...new Set(products.map(p => p.category))];
+        if (cats.length > 0) {
+            const bar = document.getElementById('store-cat-bar');
+            bar.classList.remove('d-none');
+            let html = `<div class="cat-pill active" onclick="filterStoreCategory('all', this)">全部</div>`;
+            cats.forEach(c => {
+                html += `<div class="cat-pill" onclick="filterStoreCategory('${c}', this)">${c}</div>`;
+            });
+            bar.innerHTML = html;
+        }
+    }
+
+    function filterStoreCategory(cat, btn) {
+        activeStoreCategory = cat;
+        document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderSearchResults(document.getElementById('main-content'));
+        window.scrollTo(0, 0);
+    }
+
+    function renderLobby(container) {
+        let html = `
+            <h6 class="px-2 text-secondary fw-bold"><i class="bi bi-shop"></i> 熱門通路</h6>
+            <div class="cat-grid">
+                ${lobbyData.chains.map(c => `
+                    <div class="cat-item" onclick="location.href='/search?mode=store_shelf&chain_id=${c.id}'">
+                        <div class="cat-icon">${c.logo_url ? `<img src="${c.logo_url}" style="width:30px;">` : c.icon}</div>
+                        <div class="cat-text">${c.name}</div>
+                    </div>`).join('')}
+            </div>
+            <h6 class="px-2 text-secondary fw-bold mt-3"><i class="bi bi-grid"></i> 商品分類</h6>
+            <div class="cat-grid">
+                ${lobbyData.categories.map(c => `
+                    <div class="cat-item" onclick="document.querySelector('.search-input').value='${c.name}';document.getElementById('searchForm').submit();">
+                        <div class="cat-icon">${c.icon}</div>
+                        <div class="cat-text">${c.name}</div>
+                    </div>`).join('')}
+            </div>`;
+        container.innerHTML = html;
+    }
+
+    function renderSearchResults(container) {
+        let html = '';
+        
+        // 📍 導航與店鋪標題 (單店模式)
+        if (currentMode === 'store_shelf' && products.length > 0) {
+            // 🔥 導航修正：找該店的正確名稱 (標記為 is_target_store)
+            let chainName = '此通路';
+            for (let p of products) {
+                const targetPrice = p.prices.find(pr => pr.is_target_store);
+                if (targetPrice) {
+                    chainName = targetPrice.chain_name;
+                    break;
+                }
+            }
+            // 通用導航協議 (iOS/Android 皆可)
+            const navUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(chainName)}`;
+            
+            html += `
+                <div class="store-header-info">
+                    <div class="store-title"><i class="bi bi-shop-window text-primary"></i> ${chainName}</div>
+                    <a href="${navUrl}" target="_blank" class="nav-btn"><i class="bi bi-geo-alt-fill"></i> 導航</a>
+                </div>
+            `;
+        }
+
+        const displayProducts = (activeStoreCategory === 'all') 
+            ? products 
+            : products.filter(p => p.category === activeStoreCategory);
+
+        if (displayProducts.length === 0) {
+            html += `<div class="p-5 text-center text-muted">此分類暫無商品</div>`;
+            container.innerHTML = html;
+            return;
+        }
+
+        let lastCategory = '';
+
+        displayProducts.forEach(p => {
+            if (currentMode === 'store_shelf' && p.category !== lastCategory) {
+                html += `<div class="category-header">${p.category}</div>`;
+                lastCategory = p.category;
+            }
+
+            const isPinned = (String(p.id) === String(pinId));
+            
+            let minLocalScore = 999999;
+            products.forEach(fp => { 
+                if(fp.category === p.category && fp.local_score < minLocalScore) minLocalScore = fp.local_score; 
+            });
+            const isLocalKing = (p.local_score <= minLocalScore + 0.001);
+
+            let pricesHtml = '';
+            if (p.prices.length > 0) {
+                const displayPrices = currentMode === 'store_shelf' 
+                    ? p.prices.filter(pr => pr.is_target_store) 
+                    : p.prices;
+
+                if (displayPrices.length > 0) {
+                    const bestPrice = displayPrices[0].price;
+                    
+                    displayPrices.forEach(pr => {
+                        const isCheapest = (pr.price === bestPrice);
+                        const isKingRow = (!currentMode && p.cp_score <= 999999 && isCheapest); 
+                        const rowClass = isKingRow ? 'price-item king-row' : 'price-item';
+                        
+                        const kingBadge = isKingRow ? `<div class="king-badge"><i class="bi bi-trophy-fill king-icon"></i>CP霸主</div>` : '';
+                        
+                        const linkUrl = currentMode === 'store_shelf' ? '#' : `/search?mode=store_shelf&chain_id=${pr.chain_id}&pin_id=${p.id}`;
+                        const arrow = currentMode === 'store_shelf' ? '' : '<i class="bi bi-chevron-right text-muted ms-1" style="font-size:0.8rem;"></i>';
+                        
+                        const logoImg = pr.chain_logo ? `<img src="${pr.chain_logo}" class="chain-logo">` : '<i class="bi bi-shop me-1"></i>';
+                        const promoTag = pr.promo_label ? `<span class="promo-tag">${pr.promo_label}</span>` : '';
+                        
+                        let cpTag = isKingRow 
+                            ? `<div class="cp-box-king"><i class="bi bi-stars text-warning me-1"></i>${pr.cp_val}</div>` 
+                            : `<div class="cp-box-normal">${pr.cp_val}</div>`;
+                        const timeTag = pr.time_ago ? `<span class="time-text">${pr.time_ago}</span>` : '';
+
+                        pricesHtml += `
+                            <div class="${rowClass}" onclick="location.href='${linkUrl}'">
+                                <div class="left-info">
+                                    ${kingBadge} 
+                                    <div class="chain-link">${logoImg} ${pr.chain_name} ${arrow}</div>
+                                </div>
+                                <div class="right-price">
+                                    <div class="price-top-row">
+                                        ${promoTag}
+                                        ${pr.base_price > pr.price ? `<span class="origin-price">$${pr.base_price}</span>` : ''}
+                                        <span class="price-val">$${pr.price}</span>
+                                    </div>
+                                    <div class="bottom-info">${cpTag} ${timeTag}</div>
+                                </div>
+                            </div>`;
+                    });
+                } else {
+                    pricesHtml = `<div class="p-3 text-center text-muted">此通路暫無報價</div>`;
+                }
+            } else {
+                pricesHtml = `<div class="p-3 text-center text-muted">暫無報價</div>`;
+            }
+
+            let cardClass = 'product-card';
+            let badgeHtml = '';
+            
+            // 🔥 文案與樣式邏輯 (V86.1)
+            if (isPinned && isLocalKing && currentMode === 'store_shelf') {
+                cardClass += ' super-king-card'; // 雙重霸主
+                badgeHtml = `<div class="super-badge mb-2"><i class="bi bi-gem"></i> 您選的已是CP霸主</div>`;
+            } 
+            else if (isPinned) {
+                cardClass += ' pinned-card'; // 一般釘選
+                badgeHtml = `<div class="pinned-badge mb-2">您選擇的</div>`;
+            } 
+            else if (currentMode === 'store_shelf' && isLocalKing) {
+                cardClass += ' king-card'; // 普通霸主
+                badgeHtml = `<div class="king-badge mb-2"><i class="bi bi-trophy-fill king-icon"></i>CP霸主</div>`;
+            }
+
+            const searchUrl = `/search?keyword=${encodeURIComponent(p.name)}`;
+
+            html += `
+                <div class="${cardClass}">
+                    <div class="p-header">
+                        <div style="flex-grow: 1;">
+                            ${badgeHtml}
+                            <div class="p-title-row">
+                                <div class="p-name">${p.name}</div>
+                                <a href="${searchUrl}" class="btn-search-item"><i class="bi bi-search"></i></a>
+                            </div>
+                            <div class="p-meta">
+                                ${p.spec ? `<span class="p-spec-badge">${p.spec}</span>` : ''}
+                                ${p.material || ''}
+                            </div>
+                        </div>
+                        <div style="margin-left: 10px;">
+                            <span class="p-badge">${p.category}</span>
+                        </div>
+                    </div>
+                    <div>${pricesHtml}</div>
+                </div>`;
+        });
+        container.innerHTML = html;
+    }
+</script>
+
+</body>
+</html>

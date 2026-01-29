@@ -1,0 +1,50 @@
+{% extends "admin/base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>📦 即時庫存總表</h2>
+    <div>
+        <button class="btn btn-outline-primary me-2"><i class="bi bi-download"></i> 匯出 Excel</button>
+        <button class="btn btn-primary"><i class="bi bi-arrow-clockwise"></i> 刷新數據</button>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    <i class="bi bi-info-circle-fill"></i> 
+    <strong>職責提示：</strong> 
+    <span class="badge bg-secondary">員工</span> 負責在前台輸入數量，
+    <span class="badge bg-primary">店長</span> 負責在此頁面核對異常。
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">分類</th>
+                    <th>商品名稱</th>
+                    <th>規格</th>
+                    <th>比價通路數</th>
+                    <th>目前庫存 (模擬)</th>
+                    <th class="text-end pe-4">狀態</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td class="ps-4"><span class="badge bg-light text-dark border">{{ item.category }}</span></td>
+                    <td class="fw-bold">{{ item.name }}</td>
+                    <td class="text-muted small">{{ item.spec }}</td>
+                    <td><span class="badge bg-info bg-opacity-10 text-info">{{ item.chain_count }} 間</span></td>
+                    <td class="fw-bold text-primary">
+                        --
+                    </td>
+                    <td class="text-end pe-4">
+                        <span class="badge bg-success">正常</span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

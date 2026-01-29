@@ -1,0 +1,196 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<h2 class="mb-4">⚙️ 系統設定</h2>
+
+<div class="row mb-4">
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-dark text-white"><i class="bi bi-shield-lock"></i> 安全設定</div>
+            <div class="card-body">
+                <form action="/admin/settings" method="POST">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">全域盤點口令 (員工用)</label>
+                        <input type="text" name="audit_code" class="form-control text-center fw-bold text-primary font-monospace" value="{{ admin_data.audit_code }}">
+                        <div class="form-text">員工在 LINE 輸入此代碼可喚醒盤點功能</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">管理員密碼</label>
+                        <input type="password" name="password" class="form-control" placeholder="不修改請留空">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">儲存變更</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-shop"></i> 通路管理</span>
+                <button class="btn btn-sm btn-light text-secondary fw-bold" data-bs-toggle="modal" data-bs-target="#addChainModal">
+                    <i class="bi bi-plus-lg"></i> 新增通路
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                    {% for chain in chains %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <div class="me-3 bg-light border rounded d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; overflow: hidden;">
+                                {% if chain.logo_url %}
+                                    <img src="{{ chain.logo_url }}" style="width: 100%; height: 100%; object-fit: contain;">
+                                {% else %}
+                                    <i class="bi bi-shop text-muted"></i>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <div class="fw-bold">{{ chain.name }}</div>
+                                <div class="text-muted small text-truncate" style="max-width: 150px;">
+                                    {{ chain.logo_url if chain.logo_url else '無 Logo' }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    onclick="openEditChainModal('{{ chain.id }}', '{{ chain.name }}', '{{ chain.logo_url }}')">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
+                            <form action="/admin/settings/toggle_chain" method="POST">
+                                <input type="hidden" name="chain_id" value="{{ chain.id }}">
+                                <input type="hidden" name="current_status" value="{{ chain.status }}">
+                                <button type="submit" class="btn btn-sm {{ 'btn-success' if chain.status == 1 else 'btn-outline-secondary' }}" style="width: 45px;">
+                                    {{ 'ON' if chain.status == 1 else 'OFF' }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h4 class="mb-3">📝 商品選項管理</h4>
+<div class="row">
+    {% macro option_card(title, kind, items, color) %}
+    <div class="col-md-3 mb-4">
+        <div class="card shadow-sm h-100 border-{{ color }}">
+            <div class="card-header bg-{{ color }} text-white fw-bold">{{ title }}</div>
+            <div class="card-body p-2">
+                <form action="/admin/settings/add_option" method="POST" class="input-group mb-2">
+                    <input type="hidden" name="kind" value="{{ kind }}">
+                    <input type="text" name="name" class="form-control form-control-sm" placeholder="新增..." required>
+                    <button class="btn btn-sm btn-{{ color }}" type="submit"><i class="bi bi-plus"></i></button>
+                </form>
+                <div class="list-group list-group-flush border rounded bg-white" style="max-height: 200px; overflow-y: auto;">
+                    {% for item in items %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center py-1 px-2">
+                        <span class="small">{{ item.name }}</span>
+                        <form action="/admin/settings/delete_option" method="POST" onsubmit="return confirm('確定刪除 {{ item.name }}？\n系統會檢查是否正在使用。');">
+                            <input type="hidden" name="id" value="{{ item.id }}">
+                            <input type="hidden" name="kind" value="{{ kind }}">
+                            <input type="hidden" name="name" value="{{ item.name }}">
+                            <button type="submit" class="btn btn-link text-danger p-0" style="font-size: 0.8rem;"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endmacro %}
+
+    {{ option_card('📂 商品分類', 'category', options['category'], 'primary') }}
+    {{ option_card('⚖️ 計算單位', 'unit', options['unit'], 'success') }}
+    {{ option_card('📏 規格設定', 'spec', options['spec'], 'info') }}
+    {{ option_card('🧱 材質設定', 'material', options['material'], 'warning') }}
+</div>
+
+<div class="modal fade" id="addChainModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">新增通路</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/admin/settings/add_chain" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">通路名稱</label>
+                        <input type="text" name="name" class="form-control" placeholder="例如：好市多" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Logo 圖片網址</label>
+                        <input type="text" name="logo_url" class="form-control" placeholder="請貼上圖片連結 (https://...)">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">確認新增</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editChainModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">編輯通路資料</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/admin/settings/edit_chain" method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="chain_id" id="edit_chain_id">
+                    <div class="mb-3">
+                        <label class="form-label">通路名稱</label>
+                        <input type="text" name="name" id="edit_chain_name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Logo 圖片網址</label>
+                        <input type="text" name="logo_url" id="edit_chain_logo" class="form-control">
+                    </div>
+                    <div class="text-center mt-3 p-3 bg-light rounded border">
+                        <label class="small text-muted mb-2">Logo 預覽</label><br>
+                        <img id="edit_chain_preview" src="" style="max-height: 60px; max-width: 100%; object-fit: contain; display: none;">
+                        <span id="no_preview_text" class="text-muted small">暫無圖片</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">儲存變更</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openEditChainModal(id, name, logo) {
+        document.getElementById('edit_chain_id').value = id;
+        document.getElementById('edit_chain_name').value = name;
+        document.getElementById('edit_chain_logo').value = logo;
+        updatePreview(logo);
+        new bootstrap.Modal(document.getElementById('editChainModal')).show();
+    }
+
+    document.getElementById('edit_chain_logo').addEventListener('input', function(e) {
+        updatePreview(e.target.value);
+    });
+
+    function updatePreview(url) {
+        const img = document.getElementById('edit_chain_preview');
+        const txt = document.getElementById('no_preview_text');
+        if (url && url.trim() !== '') {
+            img.src = url; img.style.display = 'inline-block'; txt.style.display = 'none';
+            img.onerror = function() { img.style.display = 'none'; txt.style.display = 'inline-block'; txt.innerText = '圖片無法載入'; };
+        } else {
+            img.style.display = 'none'; txt.style.display = 'inline-block'; txt.innerText = '暫無圖片';
+        }
+    }
+</script>
+{% endblock %}

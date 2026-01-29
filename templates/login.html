@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">登入戰情室</div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label>帳號 (LINE ID)</label>
+                        <input type="text" name="user_id" class="form-control" required placeholder="ADMIN_001">
+                    </div>
+                    <div class="mb-3">
+                        <label>密碼</label>
+                        <input type="password" name="password" class="form-control" required placeholder="admin888">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">登入</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

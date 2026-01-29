@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>員工盤點系統</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        body { 
+            background-color: #f8f9fa; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding-top: 140px; 
+            padding-bottom: 50px;
+        }
+        
+        .header-area {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 1050;
+            background: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .info-bar {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .filter-bar {
+            white-space: nowrap;
+            overflow-x: auto;
+            padding: 10px 15px;
+            background: #fff;
+            scrollbar-width: none;
+        }
+        .filter-bar::-webkit-scrollbar { display: none; }
+
+        .filter-btn {
+            display: inline-block;
+            padding: 6px 16px;
+            margin-right: 8px;
+            border-radius: 20px;
+            background: #f1f3f5;
+            color: #495057;
+            font-size: 0.9rem;
+            border: 1px solid transparent;
+            cursor: pointer;
+        }
+        .filter-btn.active {
+            background: #0d6efd; color: white; font-weight: 600;
+            box-shadow: 0 2px 5px rgba(13, 110, 253, 0.3);
+        }
+
+        .product-card { 
+            background: white; 
+            border-radius: 12px; 
+            padding: 15px; 
+            margin-bottom: 12px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03); 
+            cursor: pointer;
+        }
+        .product-card:active { transform: scale(0.98); background-color: #f8f9fa; }
+        
+        .price-badge { font-weight: bold; font-size: 1.1rem; color: #198754; }
+        .category-header { font-size: 0.95rem; color: #495057; margin: 20px 0 10px 5px; font-weight: 700; border-left: 4px solid #0d6efd; padding-left: 10px; }
+        .spec-tag { font-size: 0.8rem; color: #6c757d; background: #e9ecef; padding: 2px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+        .promo-tag-mini { font-size: 0.7rem; background: #fff3cd; color: #856404; padding: 2px 4px; border-radius: 4px; margin-left: 5px; vertical-align: middle; border: 1px solid #ffeeba; }
+
+        .modal-bottom { 
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: white; 
+            border-top-left-radius: 20px; border-top-right-radius: 20px; 
+            box-shadow: 0 -5px 30px rgba(0,0,0,0.15); 
+            padding: 25px 20px; 
+            z-index: 2000; 
+            transform: translateY(100%); transition: transform 0.3s;
+        }
+        .modal-bottom.show { transform: translateY(0); }
+        .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1999; display: none; }
+        .backdrop.show { display: block; }
+        
+        .promo-group { background: #f8f9fa; padding: 15px; border-radius: 10px; margin-top: 10px; border: 1px dashed #ced4da; }
+        #loading-overlay { position: fixed; inset:0; background:white; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        
+        /* 未授權畫面美化 */
+        .auth-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            max-width: 320px;
+            margin: 50px auto;
+            text-align: center;
+        }
+        .auth-id-box {
+            background: #f1f3f5;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            color: #495057;
+            font-size: 0.9rem;
+            margin-top: 15px;
+            word-break: break-all;
+            user-select: all;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-3 small text-muted">身份驗證中...</div>
+    </div>
+
+    <div id="main-content" style="display:none;">
+        <div class="header-area">
+            <div class="info-bar">
+                <div>
+                    <div id="staff-name" class="fw-bold text-dark">訪客</div>
+                    <div id="chain-name" class="small text-muted"><i class="bi bi-shop"></i> ...</div>
+                </div>
+                <div class="text-end d-flex align-items-center gap-2">
+                    <a href="/search" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+                        <i class="bi bi-search"></i> 查價
+                    </a>
+                    <select id="chain-selector" class="form-select form-select-sm d-none" style="width: auto; max-width: 120px;"></select>
+                    <div class="text-success fw-bold small ms-2" id="wallet-badge" style="display:none;">
+                        💰 $<span id="wallet-amt">0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="filter-bar" id="category-filter"></div>
+        </div>
+
+        <div class="container" id="product-list"></div>
+    </div>
+
+    <div id="auth-error-view" class="container" style="display:none;"></div>
+
+    <div class="backdrop" id="backdrop" onclick="closeModal()"></div>
+    <div class="modal-bottom" id="priceModal">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="m-0 fw-bold" id="modal-product-name">商品名稱</h5>
+            <button type="button" class="btn-close" onclick="closeModal()"></button>
+        </div>
+
+        <form id="priceForm">
+            <input type="hidden" id="form_product_id">
+            
+            <div class="mb-3">
+                <label class="form-label small text-muted fw-bold">單件原價 (Base Price)</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white fw-bold">$</span>
+                    <input type="number" id="inp_base_price" class="form-control form-control-lg fw-bold" placeholder="例如: 35" inputmode="numeric" required oninput="calculate()">
+                </div>
+            </div>
+
+            <div class="mb-2">
+                <label class="form-label small text-muted fw-bold">促銷活動 (Promotion)</label>
+                <select id="inp_promo_type" class="form-select" onchange="togglePromoFields()">
+                    <option value="1" selected>無 (單件價格)</option>
+                    <option value="2">📦 多件優惠 (例: 2件$60)</option>
+                    <option value="3">🏷️ 折扣優惠 (例: 2件88折)</option>
+                    <option value="4">🎁 買 X 送 Y (例: 買1送1)</option>
+                    <option value="5">➕ 加購優惠 (例: 第2件$10)</option>
+                    <option value="6">📉 指定折扣 (例: 第2件6折)</option>
+                </select>
+            </div>
+
+            <div id="promo-fields" class="promo-group d-none">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="small text-muted fw-bold" id="lbl_qty">數量</label>
+                        <input type="number" id="inp_promo_qty" class="form-control" placeholder="..." inputmode="numeric" oninput="calculate()">
+                    </div>
+                    <div class="col-6">
+                        <label class="small text-muted fw-bold" id="lbl_val">數值</label>
+                        <input type="number" id="inp_promo_val" class="form-control" placeholder="..." inputmode="decimal" oninput="calculate()">
+                    </div>
+                </div>
+                <div class="form-text small mt-1 text-end text-primary fw-bold" id="promo-hint"></div>
+            </div>
+
+            <div class="alert alert-primary mt-3 py-2 d-flex justify-content-between align-items-center">
+                <span class="small">換算單價：</span>
+                <span class="fw-bold fs-4" id="display_unit_price">$ --</span>
+            </div>
+            
+            <input type="hidden" id="final_price">
+
+            <button type="submit" class="btn btn-primary w-100 py-3 rounded-pill fw-bold shadow-sm">
+                確認更新 <small>(薪資+5)</small>
+            </button>
+        </form>
+    </div>
+
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script>
+        const LIFF_ID = "{{ liff_id }}";
+        const products = {{ products | tojson }};
+        const chains = {{ chains | tojson }};
+        
+        // 結構: {'chain-pid': {price: 42, base_price: 50, label: '2件85折'}, ...}
+        const priceMap = {{ price_map | tojson }}; 
+
+        let userLineId = "";
+        let currentChainId = -1;
+        let activeCategory = 'all';
+
+        window.onload = async function() {
+            if (LIFF_ID) {
+                try {
+                    await liff.init({ liffId: LIFF_ID });
+                    if (!liff.isLoggedIn()) { liff.login(); return; }
+                    const profile = await liff.getProfile();
+                    userLineId = profile.userId;
+                    checkStaffStatus(userLineId);
+                } catch (e) { alert('LIFF Error: ' + e); document.getElementById('loading-overlay').style.display = 'none'; }
+            }
+        };
+
+        function checkStaffStatus(uid) {
+            fetch('/api/staff/check', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ line_id: uid })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loading-overlay').style.display = 'none';
+                
+                if (data.status === 'banned') {
+                    showAuthError('⛔ 帳號已停權', '請聯繫管理員開通', 'text-danger');
+                    return;
+                }
+                
+                if (data.status === 'unregistered') {
+                    showAuthError('🚫 未授權裝置', '請截圖下方 ID 給店長綁定', 'text-secondary', uid);
+                    return;
+                }
+
+                if (data.status === 'success') {
+                    document.getElementById('main-content').style.display = 'block';
+                    document.getElementById('staff-name').textContent = data.name;
+                    document.getElementById('wallet-badge').style.display = 'block';
+                    document.getElementById('wallet-amt').textContent = data.wallet;
+                    
+                    if (data.level >= 9) {
+                        setupChainSelector();
+                        currentChainId = chains[0]?.id || -1;
+                    } else {
+                        currentChainId = data.chain_id;
+                        const chain = chains.find(c => c.id == currentChainId);
+                        document.getElementById('chain-name').innerHTML = `<i class="bi bi-shop"></i> ${chain ? chain.name : '未綁定'}`;
+                    }
+                    initCategoryFilter();
+                    renderProducts();
+                }
+            })
+            .catch(err => { console.error(err); });
+        }
+
+        // 優化後的錯誤畫面
+        function showAuthError(title, sub, colorClass, uid) {
+            const container = document.getElementById('auth-error-view');
+            container.style.display = 'block';
+            let idHtml = uid ? `<div class="auth-id-box">${uid}</div>` : '';
+            container.innerHTML = `
+                <div class="auth-card">
+                    <h4 class="${colorClass} fw-bold mb-3">${title}</h4>
+                    <p class="text-muted small mb-0">${sub}</p>
+                    ${idHtml}
+                </div>
+            `;
+        }
+
+        function setupChainSelector() {
+            const sel = document.getElementById('chain-selector');
+            sel.classList.remove('d-none');
+            document.getElementById('chain-name').style.display = 'none';
+            chains.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id; opt.textContent = c.name;
+                sel.appendChild(opt);
+            });
+            sel.addEventListener('change', (e) => {
+                currentChainId = parseInt(e.target.value);
+                renderProducts();
+            });
+        }
+
+        function initCategoryFilter() {
+            const cats = [...new Set(products.map(p => p.category))];
+            const bar = document.getElementById('category-filter');
+            let html = `<div class="filter-btn active" onclick="setCategory('all', this)">全部</div>`;
+            cats.forEach(c => { html += `<div class="filter-btn" onclick="setCategory('${c}', this)">${c}</div>`; });
+            bar.innerHTML = html;
+        }
+
+        function setCategory(cat, btn) {
+            activeCategory = cat;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderProducts();
+            window.scrollTo(0, 0);
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('product-list');
+            container.innerHTML = "";
+            const catsToShow = (activeCategory === 'all') ? [...new Set(products.map(p => p.category))] : [activeCategory];
+            
+            catsToShow.forEach(cat => {
+                if(activeCategory === 'all') container.innerHTML += `<div class="category-header">${cat}</div>`;
+                else container.innerHTML += `<div class="mt-2"></div>`;
+
+                products.filter(p => p.category === cat).forEach(p => {
+                    const key = `${currentChainId}-${p.id}`;
+                    const info = priceMap[key];
+                    
+                    // 顯示用的價格 (effective price)
+                    const priceDisplay = info ? `$${info.price}` : '<span class="text-muted small">--</span>';
+                    const promoTag = (info && info.label) ? `<span class="promo-tag-mini">${info.label}</span>` : '';
+                    
+                    // 🔥 關鍵：傳入 base_price 給 modal (如果沒有紀錄，則傳空值)
+                    // 注意：這裡我們傳入的是 base_price，不是 price！
+                    const basePriceVal = info ? info.base_price : '';
+
+                    const div = document.createElement('div');
+                    div.innerHTML = `
+                        <div class="product-card d-flex justify-content-between align-items-center"
+                             onclick="openModal(${p.id}, '${p.name}', '${basePriceVal}')">
+                            <div>
+                                <div class="fw-bold text-dark">${p.name}</div>
+                                <div class="spec-tag">${p.spec || ''}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="price-badge">${priceDisplay}</div>
+                                <div>${promoTag}</div>
+                            </div>
+                        </div>`;
+                    container.appendChild(div);
+                });
+            });
+        }
+
+        function openModal(pid, name, basePrice) {
+            document.getElementById('form_product_id').value = pid;
+            document.getElementById('modal-product-name').textContent = name;
+            
+            // 🔥 填入原價 (Base Price)
+            document.getElementById('inp_base_price').value = basePrice;
+            
+            // 重置促銷選單
+            document.getElementById('inp_promo_type').value = 1;
+            togglePromoFields();
+            
+            document.getElementById('backdrop').classList.add('show');
+            document.getElementById('priceModal').classList.add('show');
+        }
+
+        function closeModal() {
+            document.getElementById('backdrop').classList.remove('show');
+            document.getElementById('priceModal').classList.remove('show');
+        }
+
+        function togglePromoFields() {
+            const type = parseInt(document.getElementById('inp_promo_type').value);
+            const group = document.getElementById('promo-fields');
+            const lblQty = document.getElementById('lbl_qty');
+            const lblVal = document.getElementById('lbl_val');
+            const hint = document.getElementById('promo-hint');
+            document.getElementById('inp_promo_qty').value = '';
+            document.getElementById('inp_promo_val').value = '';
+
+            if (type === 1) { group.classList.add('d-none'); } 
+            else {
+                group.classList.remove('d-none');
+                if (type === 2) { lblQty.innerText="總數量"; lblVal.innerText="總金額($)"; hint.innerText="例: 2件 60元"; }
+                else if (type === 3) { lblQty.innerText="總數量"; lblVal.innerText="折數(數字)"; hint.innerText="例: 88折填 88"; }
+                else if (type === 4) { lblQty.innerText="買 (件)"; lblVal.innerText="送 (件)"; hint.innerText="例: 買1 送1"; }
+                else if (type === 5) { lblQty.innerText="總數量"; lblVal.innerText="加購價($)"; hint.innerText="例: 第2件 10元"; }
+                else if (type === 6) { lblQty.innerText="總數量"; lblVal.innerText="第X件折數"; hint.innerText="例: 第2件 6折 (填60)"; }
+            }
+            calculate();
+        }
+
+        function calculate() {
+            const type = parseInt(document.getElementById('inp_promo_type').value);
+            const base = parseFloat(document.getElementById('inp_base_price').value) || 0;
+            const qty = parseFloat(document.getElementById('inp_promo_qty').value) || 0;
+            const val = parseFloat(document.getElementById('inp_promo_val').value) || 0;
+            let final = 0;
+
+            if (base > 0) {
+                if (type === 1) final = base;
+                else if (type === 2 && qty > 0) final = val / qty;
+                else if (type === 3 && qty > 0) final = base * (val > 1 ? val/100 : val);
+                else if (type === 4 && qty > 0) final = (base * qty) / (qty + val);
+                else if (type === 5 && qty > 1) final = ((base * (qty - 1)) + val) / qty;
+                else if (type === 6 && qty > 1) {
+                    let discount = val > 1 ? val/100 : val;
+                    final = ((base * (qty - 1)) + (base * discount)) / qty;
+                }
+            }
+            const display = final > 0 ? final.toFixed(1) : 0;
+            document.getElementById('display_unit_price').textContent = `$ ${display}`;
+            document.getElementById('final_price').value = display;
+        }
+
+        document.getElementById('priceForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const price = document.getElementById('final_price').value;
+            if (price <= 0) { alert('價格必須大於 0'); return; }
+
+            const btn = this.querySelector('button');
+            const originalText = btn.innerText;
+            btn.disabled = true; btn.innerText = '⏳ 上傳中...';
+
+            fetch('/api/price/update', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    line_id: userLineId,
+                    chain_id: currentChainId,
+                    product_id: document.getElementById('form_product_id').value,
+                    price: price, // 計算單價 (消費者看)
+                    base_price: document.getElementById('inp_base_price').value, // 原價 (員工看)
+                    promo_type: document.getElementById('inp_promo_type').value,
+                    promo_qty: document.getElementById('inp_promo_qty').value,
+                    promo_val: document.getElementById('inp_promo_val').value
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // 更新本地顯示
+                    const key = `${currentChainId}-${document.getElementById('form_product_id').value}`;
+                    
+                    // 🔥 更新 map：確保 base_price 也被更新，這樣下次打開 modal 才會看到新填入的原價
+                    priceMap[key] = { 
+                        price: price, 
+                        base_price: document.getElementById('inp_base_price').value,
+                        label: data.label 
+                    };
+                    
+                    renderProducts();
+                    closeModal();
+                    
+                    const w = document.getElementById('wallet-amt');
+                    if(w) w.textContent = parseInt(w.textContent) + 5;
+                } else {
+                    alert('❌ ' + data.msg);
+                }
+                btn.disabled = false; btn.innerText = originalText;
+            });
+        });
+    </script>
+</body>
+</html>
