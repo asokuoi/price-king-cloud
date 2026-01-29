@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     
     <style>
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #f2f4f8; padding-bottom: 80px; }
@@ -436,6 +437,9 @@
     // 讓 Enter 鍵也能搜尋
     function handleEnter(event) {
         if (event.key === 'Enter') performSearch();
+            event.preventDefault(); 
+               // 執行我們寫好的 GPS 搜尋
+            performSearch();
     }    
 </script>
 
