@@ -170,7 +170,7 @@
             }
             renderSearchResults(container);
         } else {
-            // ✅ 新邏輯：保留搜尋列，將機器人顯示在原本的商品區塊中
+            // 找不到商品的畫面
             container.innerHTML = `
                 <div class="d-flex flex-column align-items-center justify-content-center pt-5 mt-5">
                     <div class="text-center mb-3 animate__animated animate__bounceIn">
@@ -178,24 +178,16 @@
                     </div>
                     <h3 class="fw-bold text-dark mb-2">找不到相關商品 🥺</h3>
                     <p class="text-secondary mb-4">別擔心，助手正在幫您重整...</p>
-                    
                     <div class="d-flex align-items-center text-primary fw-bold mb-4 bg-primary bg-opacity-10 px-4 py-2 rounded-pill">
                         <div class="spinner-border spinner-border-sm me-2" role="status"></div>
                         <span id="countdownText">3 秒後自動回大廳</span>
                     </div>
-
                     <a href="/search" class="btn btn-outline-primary rounded-pill px-4 shadow-sm">
                         <i class="bi bi-arrow-left me-2"></i>不等了，直接回大廳
                     </a>
                 </div>
             `;
-
-            // 設定 3 秒後自動跳轉
-            const timer = setTimeout(() => {
-                window.location.href = '/search'; 
-            }, 3000);
-            
-            // 如果使用者在 3 秒內自己按了搜尋或其他按鈕，這個 timer 其實不會有影響，因為頁面已經跳轉了
+            setTimeout(() => { window.location.href = '/search'; }, 3000);
         }
     };
 
@@ -220,6 +212,7 @@
         window.scrollTo(0, 0);
     }
 
+    // ✅ 修改重點：大廳圖示全部改用 goToUrlWithGPS
     function renderLobby(container) {
         let html = `
             <h6 class="px-2 text-secondary fw-bold"><i class="bi bi-shop"></i> 熱門通路</h6>
@@ -241,12 +234,11 @@
         container.innerHTML = html;
     }
 
+    // ✅ 修改重點：商品卡片點擊改用 goToUrlWithGPS
     function renderSearchResults(container) {
         let html = '';
         
-        // 📍 導航與店鋪標題 (單店模式)
         if (currentMode === 'store_shelf' && products.length > 0) {
-            // 🔥 導航修正：找該店的正確名稱 (標記為 is_target_store)
             let chainName = '此通路';
             for (let p of products) {
                 const targetPrice = p.prices.find(pr => pr.is_target_store);
@@ -255,9 +247,7 @@
                     break;
                 }
             }
-            // 通用導航協議 (iOS/Android 皆可)
             const navUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(chainName)}`;
-            
             html += `
                 <div class="store-header-info">
                     <div class="store-title"><i class="bi bi-shop-window text-primary"></i> ${chainName}</div>
@@ -308,9 +298,9 @@
                         
                         const kingBadge = isKingRow ? `<div class="king-badge"><i class="bi bi-trophy-fill king-icon"></i>CP霸主</div>` : '';
                         
+                        // 連結網址
                         const linkUrl = currentMode === 'store_shelf' ? '#' : `/search?mode=store_shelf&chain_id=${pr.chain_id}&pin_id=${p.id}`;
                         const arrow = currentMode === 'store_shelf' ? '' : '<i class="bi bi-chevron-right text-muted ms-1" style="font-size:0.8rem;"></i>';
-                        
                         const logoImg = pr.chain_logo ? `<img src="${pr.chain_logo}" class="chain-logo">` : '<i class="bi bi-shop me-1"></i>';
                         const promoTag = pr.promo_label ? `<span class="promo-tag">${pr.promo_label}</span>` : '';
                         
@@ -319,6 +309,7 @@
                             : `<div class="cp-box-normal">${pr.cp_val}</div>`;
                         const timeTag = pr.time_ago ? `<span class="time-text">${pr.time_ago}</span>` : '';
 
+                        // ⚠️ 這裡改了：價格列表點擊也走 GPS 檢查
                         pricesHtml += `
                             <div class="${rowClass}" onclick="${currentMode === 'store_shelf' ? '' : `goToUrlWithGPS('${linkUrl}')`}">
                                 <div class="left-info">
@@ -345,17 +336,16 @@
             let cardClass = 'product-card';
             let badgeHtml = '';
             
-            // 🔥 文案與樣式邏輯 (V86.1)
             if (isPinned && isLocalKing && currentMode === 'store_shelf') {
-                cardClass += ' super-king-card'; // 雙重霸主
+                cardClass += ' super-king-card'; 
                 badgeHtml = `<div class="super-badge mb-2"><i class="bi bi-gem"></i> 您選的已是CP霸主</div>`;
             } 
             else if (isPinned) {
-                cardClass += ' pinned-card'; // 一般釘選
+                cardClass += ' pinned-card';
                 badgeHtml = `<div class="pinned-badge mb-2">您選擇的</div>`;
             } 
             else if (currentMode === 'store_shelf' && isLocalKing) {
-                cardClass += ' king-card'; // 普通霸主
+                cardClass += ' king-card';
                 badgeHtml = `<div class="king-badge mb-2"><i class="bi bi-trophy-fill king-icon"></i>CP霸主</div>`;
             }
 
@@ -368,10 +358,10 @@
                             ${badgeHtml}
                             <div class="p-title-row">
                                 <div class="p-name">${p.name}</div>
-                                <a href="${searchUrl}" class="btn-search-item"><i class="bi bi-search"></i></a>
+                                <a href="javascript:void(0)" onclick="goToUrlWithGPS('${searchUrl}')" class="btn-search-item"><i class="bi bi-search"></i></a>
                             </div>
                             <div class="p-meta">
-                                ${p.spec ? `<span class="p-spec-badge">${p.spec}</span>` : ''}
+                                ${p.spec ? `<span class=\"p-spec-badge\">${p.spec}</span>` : ''}
                                 ${p.material || ''}
                             </div>
                         </div>
@@ -384,178 +374,59 @@
         });
         container.innerHTML = html;
     }
-// ----------------------------------------------------
-    // 🚀 V89.4 最終修正版：GPS 搜尋與 Enter 鍵攔截
-    // ----------------------------------------------------
 
     // 1. 監聽 Enter 鍵
     function handleEnter(event) {
         if (event.key === 'Enter') {
-            event.preventDefault(); // 阻止表單送出
-            performSearch();        // 執行搜尋
-        }
-    }
-
-    // 2. 主搜尋函式 (包含 Line ID 與 GPS 整合)
-    function performSearch() {
-        const input = document.getElementById('searchInput');
-        if (!input) {
-            alert("❌ 錯誤：找不到搜尋框 (ID: searchInput)");
-            return;
-        }
-        
-        const query = input.value.trim();
-        if (!query) return; // 沒字就不搜
-
-        // 準備基礎網址
-        let url = `/search?keyword=${encodeURIComponent(query)}`;
-
-        // 嘗試抓取 Line ID
-        try {
-            // 如果 LIFF 已載入且用戶已登入
-            if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
-                liff.getProfile().then(profile => {
-                    // 成功抓到 ID，附加到網址
-                    url += `&line_id=${profile.userId}`;
-                    executeRedirect(url);
-                }).catch((err) => {
-                    console.log("LIFF Profile Error:", err);
-                    executeRedirect(url); // 抓不到就算了，繼續執行
-                });
-            } else {
-                // 沒登入或不是 LIFF 環境
-                executeRedirect(url);
-            }
-        } catch (e) {
-            console.error("LIFF Error:", e);
-            executeRedirect(url);
-        }
-    }
-
-    // 3. 執行跳轉 (包含強制 GPS 偵測)
-    function executeRedirect(baseUrl) {
-        // 測試用：檢查瀏覽器是否支援
-        if (!navigator.geolocation) {
-            // alert("❌ 瀏覽器不支援 GPS"); // 測試用，上線可註解
-            window.location.href = baseUrl;
-            return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                // ✅ 成功抓到座標！
-                // alert("✅ 抓到座標: " + pos.coords.latitude); // 測試用
-                window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
-            },
-            (err) => {
-                // ⚠️ 失敗 (可能沒授權或訊號差)，印出錯誤代碼
-                // alert("⚠️ GPS 失敗 (Code " + err.code + "): " + err.message); // 測試用
-                window.location.href = baseUrl; // 還是要讓它搜，只是沒座標
-            },
-            { 
-                enableHighAccuracy: true, // 要求高精準度
-                timeout: 4000,            // 等 4 秒
-                maximumAge: 0             // 不用舊資料
-            } 
-        );
-    }
-
-    // 初始化 LIFF (確保能抓到 ID)
-    window.addEventListener('load', function() {
-        if (typeof liff !== 'undefined') {
-            liff.init({ liffId: "{{ liff_id }}" }).catch(err => {
-                console.log("LIFF Init Failed:", err);
-            });
-        }
-    });
-
-
- 
-   // ----------------------------------------------------
-    // 🚀 V89.5 補救版：GPS 引擎與警報器
-    // ----------------------------------------------------
-
-    // 1. 監聽 Enter 鍵
-    function handleEnter(event) {
-        if (event.key === 'Enter') {
-            event.preventDefault(); // 🛑 阻止原本的表單送出
-            performSearch();        // 👉 改走我們的 GPS 路徑
-        }
-    }
-    // ----------------------------------------------------
-    // 🚀 V89.7 通用打卡站：任何連結都要先過這一關 (抓 ID + GPS)
-    // ----------------------------------------------------
-    function goToUrlWithGPS(targetUrl) {
-        // 1. 如果已經有參數，用 & 連接，沒有則用 ? 連接
-        let separator = targetUrl.includes('?') ? '&' : '?';
-        let finalUrl = targetUrl;
-
-        // 2. 嘗試抓取 Line ID
-        try {
-            if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
-                liff.getProfile().then(profile => {
-                    finalUrl += `${separator}line_id=${profile.userId}`;
-                    executeRedirect(finalUrl); // 帶著 ID 去抓 GPS
-                }).catch(() => {
-                    executeRedirect(finalUrl); // 抓不到 ID 就直接去抓 GPS
-                });
-            } else {
-                executeRedirect(finalUrl); // 沒 LIFF 就直接去抓 GPS
-            }
-        } catch (e) {
-            executeRedirect(finalUrl);
+            event.preventDefault(); 
+            performSearch();        
         }
     }
 
     // 2. 主搜尋函式
     function performSearch() {
         const input = document.getElementById('searchInput');
-        if (!input) {
-            alert("❌ 錯誤：找不到搜尋框 (ID: searchInput)");
-            return;
-        }
+        if (!input) return;
         
         const query = input.value.trim();
         if (!query) return;
 
-        // 顯示測試警報 (證明程式有在跑)
-        // alert("🔍 正在啟動 GPS 搜尋..."); 
+        // 改用通用函式跳轉
+        goToUrlWithGPS(`/search?keyword=${encodeURIComponent(query)}`);
+    }
 
-        let url = `/search?keyword=${encodeURIComponent(query)}`;
+    // 🚀 V89.7 通用打卡站：任何連結跳轉前，先抓 ID 與 GPS
+    function goToUrlWithGPS(targetUrl) {
+        let separator = targetUrl.includes('?') ? '&' : '?';
+        let finalUrl = targetUrl;
 
         // 嘗試抓取 Line ID
         try {
             if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
                 liff.getProfile().then(profile => {
-                    url += `&line_id=${profile.userId}`;
-                    executeRedirect(url);
-                }).catch((err) => {
-                    executeRedirect(url);
-                });
+                    finalUrl += `${separator}line_id=${profile.userId}`;
+                    executeRedirect(finalUrl); 
+                }).catch(() => executeRedirect(finalUrl));
             } else {
-                executeRedirect(url);
+                executeRedirect(finalUrl);
             }
         } catch (e) {
-            executeRedirect(url);
+            executeRedirect(finalUrl);
         }
     }
 
-    // 3. 執行跳轉 (強制 GPS)
-    // 3. 執行跳轉 (正式上線版：無彈窗)
+    // 3. 執行跳轉 (靜音版)
     function executeRedirect(baseUrl) {
         if (!navigator.geolocation) {
-            // 不支援 GPS，直接跳轉，不吵使用者
             window.location.href = baseUrl;
             return;
         }
 
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                // ✅ 成功抓到，靜默跳轉
                 window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
             },
             (err) => {
-                // ⚠️ 失敗，靜默跳轉 (直接搜，不顯示錯誤)
                 window.location.href = baseUrl;
             },
             { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 } 
