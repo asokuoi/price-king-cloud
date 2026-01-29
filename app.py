@@ -491,16 +491,14 @@ def admin_dashboard():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     conn = get_db(); cur = conn.cursor()
     data = {}
-    try:
-        cur.execute("SELECT keyword, log_time FROM search_logs ORDER BY log_time DESC LIMIT 10")
-        # 修改開始：強制把時間轉成字串，讓 HTML 不會報錯
-        recent_searches = []
-        for r in cur.fetchall():
-            d = dict(r)
-            d['log_time'] = str(d['log_time']) # 關鍵這行！
-            recent_searches.append(d)
-        # 修改結束
-    except: recent_searches = []
+    
+    # 1. 基礎數據統計
+    try: 
+        # ✅ FIX: SQLite date() -> Postgres DATE(...)
+        cur.execute("SELECT COUNT(*) FROM search_logs WHERE DATE(log_time + interval '8 hours') = DATE(CURRENT_TIMESTAMP + interval '8 hours')")
+        data['today_search'] = cur.fetchone()[0]
+    except: data['today_search'] = 0
+    
     try: cur.execute("SELECT COUNT(*) FROM products WHERE status = 1"); data['product_count'] = cur.fetchone()[0]
     except: data['product_count'] = 0
     try: cur.execute("SELECT COUNT(*) FROM chains WHERE status = 1"); data['store_count'] = cur.fetchone()[0]
@@ -508,8 +506,7 @@ def admin_dashboard():
     try: cur.execute("SELECT COUNT(*) FROM staff WHERE status = 1"); data['staff_count'] = cur.fetchone()[0]
     except: data['staff_count'] = 0
     
-    # 異常抓鬼 (V87: >= 2)
-    # ✅ FIX: SQLite date() -> Postgres DATE(...)
+    # 2. 異常抓鬼 (轉換時間格式)
     abnormal_query = """
         SELECT s.name as staff_name, p.name as product_name, c.name as chain_name, COUNT(*) as cnt 
         FROM price_logs l
@@ -523,14 +520,23 @@ def admin_dashboard():
     """
     try:
         cur.execute(abnormal_query)
+        # ✅ FIX: 這裡雖然沒有時間欄位要顯示，但保持習慣轉 dict
         abnormal_list = [dict(r) for r in cur.fetchall()]
     except Exception as e: 
         print(e)
         abnormal_list = []
 
+    # 3. 最近搜尋 (🔴 這裡是關鍵報錯點！)
     try:
         cur.execute("SELECT keyword, log_time FROM search_logs ORDER BY log_time DESC LIMIT 10")
-        recent_searches = [dict(r) for r in cur.fetchall()]
+        raw_searches = cur.fetchall()
+        recent_searches = []
+        for r in raw_searches:
+            d = dict(r)
+            # ✅ FIX: 強制把 datetime 物件轉成字串，讓 HTML 的 .split() 可以運作
+            if d['log_time']:
+                d['log_time'] = str(d['log_time']) 
+            recent_searches.append(d)
     except: recent_searches = []
 
     conn.close()
