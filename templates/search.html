@@ -384,91 +384,91 @@
         });
         container.innerHTML = html;
     }
-// 🚀 V89.2 補強：搜尋與 GPS 定位邏輯
+// ----------------------------------------------------
+    // 🚀 V89.4 最終修正版：GPS 搜尋與 Enter 鍵攔截
+    // ----------------------------------------------------
+
+    // 1. 監聽 Enter 鍵
+    function handleEnter(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // 阻止表單送出
+            performSearch();        // 執行搜尋
+        }
+    }
+
+    // 2. 主搜尋函式 (包含 Line ID 與 GPS 整合)
     function performSearch() {
-        // 1. 抓取輸入框 (等等會去設定這個 ID)
         const input = document.getElementById('searchInput');
         if (!input) {
-            console.error("錯誤：找不到搜尋框 (searchInput)");
+            alert("❌ 錯誤：找不到搜尋框 (ID: searchInput)");
             return;
         }
         
         const query = input.value.trim();
         if (!query) return; // 沒字就不搜
 
-        // 2. 準備參數
+        // 準備基礎網址
         let url = `/search?keyword=${encodeURIComponent(query)}`;
 
-        // 3. 嘗試抓取 User ID (如果有的話)
+        // 嘗試抓取 Line ID
         try {
+            // 如果 LIFF 已載入且用戶已登入
             if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
                 liff.getProfile().then(profile => {
+                    // 成功抓到 ID，附加到網址
                     url += `&line_id=${profile.userId}`;
-                    executeRedirect(url); // 抓到 ID 就執行
-                }).catch(() => executeRedirect(url));
+                    executeRedirect(url);
+                }).catch((err) => {
+                    console.log("LIFF Profile Error:", err);
+                    executeRedirect(url); // 抓不到就算了，繼續執行
+                });
             } else {
-                executeRedirect(url); // 沒 ID 也執行
+                // 沒登入或不是 LIFF 環境
+                executeRedirect(url);
             }
         } catch (e) {
+            console.error("LIFF Error:", e);
             executeRedirect(url);
         }
     }
 
-    // 執行帶有 GPS 的跳轉
-    //function executeRedirect(baseUrl) {
-     //   if (navigator.geolocation) {
-     //       navigator.geolocation.getCurrentPosition(
-     //           (pos) => {
-      //              // 有 GPS：帶上經緯度
-     //               window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
-     //           },
-     //           (err) => {
-     //               // 沒 GPS：直接跳轉
-     //               console.log("GPS無法取得:", err);
-     //               window.location.href = baseUrl;
-     //           },
-      //          { timeout: 3000 } // 最多等 3 秒
-     //       );
-     //   } else {
-    //        window.location.href = baseUrl;
-    //    }
-    //}
-
+    // 3. 執行跳轉 (包含強制 GPS 偵測)
     function executeRedirect(baseUrl) {
-        // 測試用：直接告訴我瀏覽器支不支援
+        // 測試用：檢查瀏覽器是否支援
         if (!navigator.geolocation) {
-            alert("❌ 您的瀏覽器不支援 GPS");
+            // alert("❌ 瀏覽器不支援 GPS"); // 測試用，上線可註解
             window.location.href = baseUrl;
             return;
         }
 
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                // 成功！
-                // alert("✅ 抓到了！Lat: " + pos.coords.latitude); // 測試成功後可註解掉
+                // ✅ 成功抓到座標！
+                // alert("✅ 抓到座標: " + pos.coords.latitude); // 測試用
                 window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
             },
             (err) => {
-                // 失敗！把錯誤代碼印出來
-                // code 1: 使用者拒絕, code 2: 抓不到位置, code 3: 超時
-                alert("⚠️ GPS 失敗 (Code " + err.code + "): " + err.message);
-                window.location.href = baseUrl;
+                // ⚠️ 失敗 (可能沒授權或訊號差)，印出錯誤代碼
+                // alert("⚠️ GPS 失敗 (Code " + err.code + "): " + err.message); // 測試用
+                window.location.href = baseUrl; // 還是要讓它搜，只是沒座標
             },
             { 
                 enableHighAccuracy: true, // 要求高精準度
-                timeout: 5000,            // 放寬到 5 秒
-                maximumAge: 0             // 不使用舊快取
+                timeout: 4000,            // 等 4 秒
+                maximumAge: 0             // 不用舊資料
             } 
         );
     }
 
-    // 讓 Enter 鍵也能搜尋
-    function handleEnter(event) {
-        if (event.key === 'Enter') performSearch();
-            event.preventDefault(); 
-               // 執行我們寫好的 GPS 搜尋
-            performSearch();
-    }    
+    // 初始化 LIFF (確保能抓到 ID)
+    window.addEventListener('load', function() {
+        if (typeof liff !== 'undefined') {
+            liff.init({ liffId: "{{ liff_id }}" }).catch(err => {
+                console.log("LIFF Init Failed:", err);
+            });
+        }
+    });
+ 
 </script>
 
 </body>
