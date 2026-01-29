@@ -225,7 +225,7 @@
             <h6 class="px-2 text-secondary fw-bold"><i class="bi bi-shop"></i> 熱門通路</h6>
             <div class="cat-grid">
                 ${lobbyData.chains.map(c => `
-                    <div class="cat-item" onclick="location.href='/search?mode=store_shelf&chain_id=${c.id}'">
+                    <div class="cat-item" onclick="goToUrlWithGPS('/search?mode=store_shelf&chain_id=${c.id}')">
                         <div class="cat-icon">${c.logo_url ? `<img src="${c.logo_url}" style="width:30px;">` : c.icon}</div>
                         <div class="cat-text">${c.name}</div>
                     </div>`).join('')}
@@ -233,7 +233,7 @@
             <h6 class="px-2 text-secondary fw-bold mt-3"><i class="bi bi-grid"></i> 商品分類</h6>
             <div class="cat-grid">
                 ${lobbyData.categories.map(c => `
-                    <div class="cat-item" onclick="document.querySelector('.search-input').value='${c.name}';document.getElementById('searchForm').submit();">
+                    <div class="cat-item" onclick="goToUrlWithGPS('/search?keyword=${encodeURIComponent(c.name)}')">
                         <div class="cat-icon">${c.icon}</div>
                         <div class="cat-text">${c.name}</div>
                     </div>`).join('')}
@@ -320,7 +320,7 @@
                         const timeTag = pr.time_ago ? `<span class="time-text">${pr.time_ago}</span>` : '';
 
                         pricesHtml += `
-                            <div class="${rowClass}" onclick="location.href='${linkUrl}'">
+                            <div class="${rowClass}" onclick="${currentMode === 'store_shelf' ? '' : `goToUrlWithGPS('${linkUrl}')`}">
                                 <div class="left-info">
                                     ${kingBadge} 
                                     <div class="chain-link">${logoImg} ${pr.chain_name} ${arrow}</div>
@@ -480,6 +480,30 @@
         if (event.key === 'Enter') {
             event.preventDefault(); // 🛑 阻止原本的表單送出
             performSearch();        // 👉 改走我們的 GPS 路徑
+        }
+    }
+    // ----------------------------------------------------
+    // 🚀 V89.7 通用打卡站：任何連結都要先過這一關 (抓 ID + GPS)
+    // ----------------------------------------------------
+    function goToUrlWithGPS(targetUrl) {
+        // 1. 如果已經有參數，用 & 連接，沒有則用 ? 連接
+        let separator = targetUrl.includes('?') ? '&' : '?';
+        let finalUrl = targetUrl;
+
+        // 2. 嘗試抓取 Line ID
+        try {
+            if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
+                liff.getProfile().then(profile => {
+                    finalUrl += `${separator}line_id=${profile.userId}`;
+                    executeRedirect(finalUrl); // 帶著 ID 去抓 GPS
+                }).catch(() => {
+                    executeRedirect(finalUrl); // 抓不到 ID 就直接去抓 GPS
+                });
+            } else {
+                executeRedirect(finalUrl); // 沒 LIFF 就直接去抓 GPS
+            }
+        } catch (e) {
+            executeRedirect(finalUrl);
         }
     }
 
