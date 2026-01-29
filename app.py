@@ -693,78 +693,164 @@ def admin_staff_delete():
     cur.execute("DELETE FROM staff WHERE line_id = %s", (request.form['line_id'],)); conn.commit(); conn.close(); flash('🗑️ 刪除成功')
     return redirect(url_for('admin_staff'))
 
-# ------------------------------------------------------------------
-# ⚙️ 設定 (V87.0)
-# ------------------------------------------------------------------
+# ==========================================
+# ⚙️ 設定 (V89.1: 詳細除錯版)
+# ==========================================
 @app.route('/admin/settings', methods=['GET', 'POST'])
 def admin_settings():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     conn = get_db(); cur = conn.cursor()
+    
     if request.method == 'POST':
-        pwd = request.form.get('password'); code = request.form.get('audit_code')
-        # ✅ FIX: ? -> %s
-        if pwd: cur.execute("UPDATE admin_users SET password=%s, audit_code=%s WHERE username='admin'", (pwd, code))
-        else: cur.execute("UPDATE admin_users SET audit_code=%s WHERE username='admin'", (code,))
-        conn.commit(); flash('✅ 設定已更新'); conn.close(); return redirect(url_for('admin_settings'))
-    cur.execute("SELECT * FROM admin_users WHERE username = 'admin'"); res = cur.fetchone(); admin_data = dict(res) if res else {'audit_code': '8888'}
-    cur.execute("SELECT * FROM chains ORDER BY id"); chains = [dict(r) for r in cur.fetchall()]
-    cur.execute("SELECT * FROM product_options ORDER BY kind, name"); options = {'category': [], 'spec': [], 'material': [], 'unit': []}
-    for r in cur.fetchall():
-        d = dict(r)
-        if d['kind'] in options: options[d['kind']].append(d)
-    conn.close(); return render_template('admin/settings.html', admin_data=admin_data, chains=chains, options=options)
+        try:
+            pwd = request.form.get('password')
+            code = request.form.get('audit_code')
+            
+            if pwd: 
+                cur.execute("UPDATE admin_users SET password=%s, audit_code=%s WHERE username='admin'", (pwd, code))
+            else: 
+                cur.execute("UPDATE admin_users SET audit_code=%s WHERE username='admin'", (code,))
+            
+            conn.commit()
+            flash('✅ 設定已更新')
+        except Exception as e:
+            conn.rollback()
+            print(f"❌ Settings Update Error: {e}")
+            flash(f'❌ 更新失敗: {str(e)}')
+        finally:
+            conn.close()
+        return redirect(url_for('admin_settings'))
+
+    # GET 請求：讀取資料
+    try:
+        cur.execute("SELECT * FROM admin_users WHERE username = 'admin'")
+        res = cur.fetchone()
+        admin_data = dict(res) if res else {'audit_code': '8888'}
+        
+        cur.execute("SELECT * FROM chains ORDER BY id")
+        chains = [dict(r) for r in cur.fetchall()]
+        
+        cur.execute("SELECT * FROM product_options ORDER BY kind, name")
+        options = {'category': [], 'spec': [], 'material': [], 'unit': []}
+        for r in cur.fetchall():
+            d = dict(r)
+            if d['kind'] in options: options[d['kind']].append(d)
+            
+    except Exception as e:
+        print(f"❌ Load Settings Error: {e}")
+        flash(f'❌ 資料讀取異常: {str(e)}')
+        admin_data = {'audit_code': 'Error'}
+        chains = []
+        options = {'category': [], 'spec': [], 'material': [], 'unit': []}
+    finally:
+        if conn: conn.close()
+
+    return render_template('admin/settings.html', admin_data=admin_data, chains=chains, options=options)
 
 @app.route('/admin/settings/toggle_chain', methods=['POST'])
 def admin_toggle_chain():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    cid = request.form.get('chain_id'); curr = request.form.get('current_status'); new_s = 0 if str(curr) == '1' else 1
-    # ✅ FIX: ? -> %s
-    conn = get_db(); cur = conn.cursor(); cur.execute("UPDATE chains SET status = %s WHERE id = %s", (new_s, cid)); conn.commit(); conn.close(); return redirect(url_for('admin_settings'))
+    cid = request.form.get('chain_id')
+    curr = request.form.get('current_status')
+    new_s = 0 if str(curr) == '1' else 1
+    
+    conn = get_db(); cur = conn.cursor()
+    try:
+        cur.execute("UPDATE chains SET status = %s WHERE id = %s", (new_s, cid))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ 切換失敗: {str(e)}')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_settings'))
 
 @app.route('/admin/settings/add_chain', methods=['POST'])
 def admin_add_chain():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    name = request.form.get('name'); logo = request.form.get('logo_url')
+    name = request.form.get('name')
+    logo = request.form.get('logo_url')
+    
     conn = get_db(); cur = conn.cursor()
     try: 
-        # ✅ FIX: ? -> %s
-        cur.execute("INSERT INTO chains (name, logo_url, status) VALUES (%s, %s, 1)", (name, logo)); conn.commit(); flash(f'✅ 已新增 {name}')
-    except Exception as e: flash(f'❌ 失敗: {str(e)}')
-    conn.close(); return redirect(url_for('admin_settings'))
+        cur.execute("INSERT INTO chains (name, logo_url, status) VALUES (%s, %s, 1)", (name, logo))
+        conn.commit()
+        flash(f'✅ 已新增通路: {name}')
+    except Exception as e: 
+        conn.rollback()
+        flash(f'❌ 新增失敗: {str(e)}')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_settings'))
 
 @app.route('/admin/settings/edit_chain', methods=['POST'])
 def admin_edit_chain():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    cid = request.form.get('chain_id'); name = request.form.get('name'); logo = request.form.get('logo_url')
+    cid = request.form.get('chain_id')
+    name = request.form.get('name')
+    logo = request.form.get('logo_url')
+    
     conn = get_db(); cur = conn.cursor()
     try: 
-        # ✅ FIX: ? -> %s
-        cur.execute("UPDATE chains SET name=%s, logo_url=%s WHERE id=%s", (name, logo, cid)); conn.commit(); flash(f'✅ 更新成功')
-    except Exception as e: flash(f'❌ 失敗: {str(e)}')
-    conn.close(); return redirect(url_for('admin_settings'))
+        cur.execute("UPDATE chains SET name=%s, logo_url=%s WHERE id=%s", (name, logo, cid))
+        conn.commit()
+        flash(f'✅ 通路更新成功')
+    except Exception as e: 
+        conn.rollback()
+        flash(f'❌ 更新失敗: {str(e)}')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_settings'))
 
 @app.route('/admin/settings/add_option', methods=['POST'])
 def admin_settings_add_option():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    kind = request.form.get('kind'); name = request.form.get('name'); conn = get_db(); cur = conn.cursor()
+    kind = request.form.get('kind')
+    name = request.form.get('name')
+    
+    conn = get_db(); cur = conn.cursor()
     try: 
-        # ✅ FIX: ? -> %s
-        cur.execute("INSERT INTO product_options (kind, name) VALUES (%s, %s)", (kind, name)); conn.commit(); flash(f'✅ 已新增 {kind}')
-    except: flash('❌ 新增失敗')
-    conn.close(); return redirect(url_for('admin_settings'))
+        # Debug 訊息：看看後端到底收到了什麼
+        print(f"Attempting to add option: kind={kind}, name={name}")
+        
+        cur.execute("INSERT INTO product_options (kind, name) VALUES (%s, %s)", (kind, name))
+        conn.commit()
+        flash(f'✅ 已新增 {name}')
+    except Exception as e:
+        conn.rollback()
+        print(f"❌ Add Option Error: {e}") # 關鍵！這行會把錯誤印在 Logs 裡
+        flash(f'❌ 新增失敗: {str(e)}')   # 這行會把錯誤顯示在網頁上
+    finally:
+        conn.close()
+    return redirect(url_for('admin_settings'))
 
 @app.route('/admin/settings/delete_option', methods=['POST'])
 def admin_settings_delete_option():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    oid = request.form.get('id'); kind = request.form.get('kind'); name = request.form.get('name'); conn = get_db(); cur = conn.cursor()
-    if kind in ['category', 'spec', 'material', 'unit']:
-        try:
-            # ✅ FIX: ? -> %s
+    oid = request.form.get('id')
+    kind = request.form.get('kind')
+    name = request.form.get('name')
+    
+    conn = get_db(); cur = conn.cursor()
+    try:
+        # 先檢查是否被使用
+        if kind in ['category', 'spec', 'material', 'unit']:
+            # 注意：這裡假設 products 表有這些欄位名稱，如果沒有會報錯
             cur.execute(f"SELECT COUNT(*) FROM products WHERE {kind} = %s", (name,))
-            if cur.fetchone()[0] > 0: flash(f'🚫 無法刪除：尚有商品使用此選項'); conn.close(); return redirect(url_for('admin_settings'))
-        except: pass
-    # ✅ FIX: ? -> %s
-    cur.execute("DELETE FROM product_options WHERE id = %s", (oid,)); conn.commit(); conn.close(); flash(f'🗑️ 已刪除'); return redirect(url_for('admin_settings'))
+            count = cur.fetchone()[0]
+            if count > 0: 
+                flash(f'🚫 無法刪除：尚有 {count} 個商品使用此選項')
+                return redirect(url_for('admin_settings'))
+        
+        cur.execute("DELETE FROM product_options WHERE id = %s", (oid,))
+        conn.commit()
+        flash(f'🗑️ 已刪除 {name}')
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ 刪除失敗: {str(e)}')
+    finally:
+        conn.close()
+    return redirect(url_for('admin_settings'))
 
 @app.route('/admin/products')
 def admin_products():
