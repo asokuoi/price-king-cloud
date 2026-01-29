@@ -415,23 +415,51 @@
     }
 
     // 執行帶有 GPS 的跳轉
+    //function executeRedirect(baseUrl) {
+     //   if (navigator.geolocation) {
+     //       navigator.geolocation.getCurrentPosition(
+     //           (pos) => {
+      //              // 有 GPS：帶上經緯度
+     //               window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
+     //           },
+     //           (err) => {
+     //               // 沒 GPS：直接跳轉
+     //               console.log("GPS無法取得:", err);
+     //               window.location.href = baseUrl;
+     //           },
+      //          { timeout: 3000 } // 最多等 3 秒
+     //       );
+     //   } else {
+    //        window.location.href = baseUrl;
+    //    }
+    //}
+
     function executeRedirect(baseUrl) {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    // 有 GPS：帶上經緯度
-                    window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
-                },
-                (err) => {
-                    // 沒 GPS：直接跳轉
-                    console.log("GPS無法取得:", err);
-                    window.location.href = baseUrl;
-                },
-                { timeout: 3000 } // 最多等 3 秒
-            );
-        } else {
+        // 測試用：直接告訴我瀏覽器支不支援
+        if (!navigator.geolocation) {
+            alert("❌ 您的瀏覽器不支援 GPS");
             window.location.href = baseUrl;
+            return;
         }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                // 成功！
+                // alert("✅ 抓到了！Lat: " + pos.coords.latitude); // 測試成功後可註解掉
+                window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`;
+            },
+            (err) => {
+                // 失敗！把錯誤代碼印出來
+                // code 1: 使用者拒絕, code 2: 抓不到位置, code 3: 超時
+                alert("⚠️ GPS 失敗 (Code " + err.code + "): " + err.message);
+                window.location.href = baseUrl;
+            },
+            { 
+                enableHighAccuracy: true, // 要求高精準度
+                timeout: 5000,            // 放寬到 5 秒
+                maximumAge: 0             // 不使用舊快取
+            } 
+        );
     }
 
     // 讓 Enter 鍵也能搜尋

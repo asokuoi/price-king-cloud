@@ -47,6 +47,14 @@ def to_int(val, default=0):
 # ==========================================
 # 🌐 基礎路由
 # ==========================================
+
+# 🛡️ 強制允許 GPS 權限
+@app.after_request
+def add_header(response):
+    # 允許 geolocation
+    response.headers['Permissions-Policy'] = 'geolocation=(self "https://price-king-cloud.onrender.com")'
+    return response
+
 @app.route('/')
 def index():
     liff_state = request.args.get('liff.state')
