@@ -16,6 +16,7 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendM
 from urllib.parse import quote, unquote
 import database
 import config
+from psycopg2.extras import DictCursor
 
 app = Flask(__name__)
 app.secret_key = config.SECRET_KEY
@@ -24,8 +25,8 @@ line_bot_api = LineBotApi(config.LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(config.LINE_CHANNEL_SECRET)
 
 def get_db():
-    conn = database.get_db_connection()
-    conn.row_factory = sqlite3.Row
+    # 加入 cursor_factory=DictCursor 參數
+    conn = psycopg2.connect(os.environ.get('DATABASE_URL'), cursor_factory=DictCursor)
     return conn
 
 def is_admin_logged_in(): return session.get('admin_logged_in')
