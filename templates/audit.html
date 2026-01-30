@@ -117,27 +117,28 @@
         <div class="mt-3 small text-muted">身份驗證中...</div>
     </div>
 
-<div class="info-bar">
-                <div class="d-flex align-items-center">
-                    <img id="chain-logo" src="" style="width: 45px; height: 45px; border-radius: 8px; object-fit: contain; display: none; border: 1px solid #dee2e6; background: #fff;" class="me-2 shadow-sm">
-                    <div>
-                        <div id="staff-name" class="small text-muted mb-0">訪客</div>
-                        <h4 id="chain-name" class="m-0 fw-bold text-dark">Loading...</h4>
-                    </div>
+    <div id="main-content" style="display:none;">
+        <div class="header-area">
+            <div class="info-bar">
+                <div>
+                    <div id="staff-name" class="small text-muted mb-1">訪客</div>
+                    <h4 id="chain-name" class="m-0 fw-bold text-primary"><i class="bi bi-shop"></i> --</h4>
                 </div>
-                
                 <div class="text-end d-flex align-items-center gap-2">
                     <a href="/search" class="btn btn-outline-primary btn-sm rounded-pill px-3">
                         <i class="bi bi-search"></i> 查價
                     </a>
-                    
                     <select id="chain-selector" class="form-select form-select-sm d-none" style="width: auto; max-width: 120px;"></select>
-                    
-                    <div class="wallet-badge bg-warning bg-opacity-25 px-2 py-1 rounded-pill border border-warning ms-1" id="wallet-badge" style="display:none;">
-                        💰 <span id="wallet-amt" class="fw-bold text-dark">0</span>
+                    <div class="text-success fw-bold small ms-2" id="wallet-badge" style="display:none;">
+                        💰 $<span id="wallet-amt">0</span>
                     </div>
                 </div>
             </div>
+            <div class="filter-bar" id="category-filter"></div>
+        </div>
+
+        <div class="container" id="product-list"></div>
+    </div>
 
     <div id="auth-error-view" class="container" style="display:none;"></div>
 
@@ -251,40 +252,21 @@
                     
                     if (data.level >= 9) {
                         setupChainSelector();
-                        // 主管預設選第一個，或上次選的
+                        // 主管預設顯示第一個通路的名稱
                         currentChainId = chains[0]?.id || -1;
-                        
-                        // 🔥 主管模式：初始化時也要顯示第一個通路的 LOGO
                         const firstChain = chains.find(c => c.id == currentChainId);
-                        if(firstChain) updateChainLogo(firstChain);
-
+                        document.getElementById('chain-name').innerHTML = `<i class="bi bi-shop"></i> ${firstChain ? firstChain.name : '請選擇'}`;
                     } else {
-                        // 一般員工模式
                         currentChainId = data.chain_id;
                         const chain = chains.find(c => c.id == currentChainId);
-                        
-                        // 設定文字
+                        // 🔥 修改重點：直接填入名稱，字體樣式由 HTML class 控制
                         document.getElementById('chain-name').innerHTML = `<i class="bi bi-shop"></i> ${chain ? chain.name : '未綁定'}`;
-                        
-                        // 🔥 新增：設定 LOGO
-                        if(chain) updateChainLogo(chain);
                     }
                     initCategoryFilter();
                     renderProducts();
                 }
             })
             .catch(err => { console.error(err); });
-        }
-
-        // 🔥 新增一個小幫手函式：專門負責換圖片 (避免程式碼重複)
-        function updateChainLogo(chain) {
-            const logoImg = document.getElementById('chain-logo');
-            if (logoImg && chain.logo_url && chain.logo_url.startsWith('http')) {
-                logoImg.src = chain.logo_url;
-                logoImg.style.display = 'block';
-            } else if (logoImg) {
-                logoImg.style.display = 'none';
-            }
         }
 
         // 優化後的錯誤畫面
@@ -312,11 +294,6 @@
             });
             sel.addEventListener('change', (e) => {
                 currentChainId = parseInt(e.target.value);
-                
-                // 🔥 新增：主管切換時同步更新 LOGO
-                const selectedChain = chains.find(c => c.id == currentChainId);
-                if(selectedChain) updateChainLogo(selectedChain);
-                
                 renderProducts();
             });
         }
@@ -354,23 +331,22 @@
                     const priceDisplay = info ? `$${info.price}` : '<span class="text-muted small">--</span>';
                     const promoTag = (info && info.label) ? `<span class="promo-tag-mini">${info.label}</span>` : '';
                     
+                    // 🔥 關鍵：傳入 base_price 給 modal (如果沒有紀錄，則傳空值)
+                    // 注意：這裡我們傳入的是 base_price，不是 price！
                     const basePriceVal = info ? info.base_price : '';
 
-                    // 🔥 1. 規格標籤
-                    const spec = p.spec ? `<span class="spec-tag me-1">${p.spec}</span>` : '';
-                    
-                    // 🔥 2. 材質標籤 (新增) - 藍色小標籤
-                    const material = p.material ? `<span class="badge bg-info text-dark bg-opacity-10 border border-info border-opacity-25" style="font-size: 0.75rem; font-weight: normal;">${p.material}</span>` : '';
+                    // 🔥 修改重點：準備材質字串 (如果有材質才顯示)
+                    const matHtml = p.material ? `<span class="spec-tag ms-1 bg-info bg-opacity-10 text-dark">${p.material}</span>` : '';
 
                     const div = document.createElement('div');
                     div.innerHTML = `
                         <div class="product-card d-flex justify-content-between align-items-center"
-                             onclick="openModal(${p.id}, '${p.name.replace(/'/g, "\\'")}', '${basePriceVal}')">
+                             onclick="openModal(${p.id}, '${p.name}', '${basePriceVal}')">
                             <div>
                                 <div class="fw-bold text-dark">${p.name}</div>
-                                <div class="mt-1">
-                                    ${spec} 
-                                    ${material} </div>
+                                <div>
+                                    <span class="spec-tag">${p.spec || ''}</span>
+                                    ${matHtml} </div>
                             </div>
                             <div class="text-end">
                                 <div class="price-badge">${priceDisplay}</div>
