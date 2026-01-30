@@ -227,7 +227,8 @@ def audit_page():
     conn = get_db(); cur = conn.cursor()
     cur.execute("SELECT * FROM chains WHERE status = 1")
     chains = [dict(r) for r in cur.fetchall()]
-    cur.execute("SELECT id, name, category, spec FROM products WHERE status = 1 ORDER BY category, id")
+# 🔥 修改重點：加入 material，且排序改為：分類 -> 檔名(品牌) -> ID
+    cur.execute("SELECT id, name, category, spec, material FROM products WHERE status = 1 ORDER BY category, name, id")
     products = [dict(r) for r in cur.fetchall()]
     
     cur.execute("SELECT chain_id, product_id, price, base_price, promo_label FROM prices")
