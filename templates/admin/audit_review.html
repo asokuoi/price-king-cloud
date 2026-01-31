@@ -2,25 +2,47 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold"><i class="bi bi-journal-text me-2"></i> 戰情勾稽室</h3>
-    
-    <div class="d-flex gap-2 bg-white p-2 rounded shadow-sm border">
-        <form action="/admin/audit" method="GET" class="d-flex gap-2 align-items-center">
-            <label class="fw-bold text-muted small">查詢日期：</label>
-            <input type="date" name="query_date" class="form-control form-control-sm" value="{{ current_date }}" required>
-            <button type="submit" class="btn btn-sm btn-primary text-nowrap">
-                <i class="bi bi-search"></i> 查詢
-            </button>
+    <h3 class="fw-bold"><i class="bi bi-speedometer2 me-2"></i> 戰情勾稽室 V2.0</h3>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body bg-light rounded">
+        <form action="/admin/audit" method="GET" class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="fw-bold small text-muted">日期</label>
+                <input type="date" name="query_date" class="form-control form-control-sm" value="{{ current_date }}" onchange="this.form.submit()">
+            </div>
+            
+            <div class="col-auto">
+                <label class="fw-bold small text-muted">通路</label>
+                <select name="chain_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">全部通路</option>
+                    {% for c in chains %}
+                    <option value="{{ c.id }}" {{ 'selected' if sel_chain == str(c.id) else '' }}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-auto">
+                <label class="fw-bold small text-muted">員工</label>
+                <select name="staff_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">全部人員</option>
+                    {% for s in staffs %}
+                    <option value="{{ s.line_id }}" {{ 'selected' if sel_staff == s.line_id else '' }}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-auto ms-auto">
+                 <a href="/admin/audit" class="btn btn-sm btn-outline-secondary">重置篩選</a>
+            </div>
         </form>
-        <button class="btn btn-sm btn-outline-secondary" onclick="location.href='/admin/audit'">
-            今天
-        </button>
     </div>
 </div>
 
 <div class="card shadow-sm border-0">
     <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-        <span>📅 {{ current_date }} 足跡紀錄</span>
+        <span>📋 監控列表</span>
         <span class="badge bg-light text-dark">{{ logs|length }} 筆</span>
     </div>
     <div class="card-body p-0">
@@ -28,71 +50,89 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4">時間</th>
-                        <th>員工 (ID)</th>
+                        <th class="ps-4">時間 / 間隔</th>
+                        <th>員工</th>
                         <th>通路 / 商品</th>
-                        <th>修改內容 (促銷)</th>
-                        <th class="text-center">狀態</th>
-                        <th class="text-end pe-4">人工執法</th>
+                        <th>價格變動 (舊➔新)</th>
+                        <th>狀態</th>
+                        <th class="text-end pe-4">管理</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% if logs %}
                         {% for log in logs %}
                         <tr class="{{ 'table-active opacity-50' if log.status == 0 else '' }}">
-                            <td class="ps-4 text-muted small font-monospace">
-                                {{ log.log_time.split(' ')[1] }}
-                            </td>
-                            <td>
-                                <span class="fw-bold">{{ log.staff_name }}</span>
-                                <br><small class="text-muted font-monospace" style="font-size: 0.75rem;">...{{ log.staff_line_id[-6:] }}</small>
-                            </td>
-                            <td>
-                                <div class="fw-bold text-primary">{{ log.product_name }}</div>
-                                <small class="badge bg-light text-dark border">{{ log.chain_name }}</small>
-                            </td>
-                            <td>
-                                <span class="fs-5 fw-bold text-success">${{ log.new_price }}</span>
-                                {% if log.promo_label %}
-                                    <span class="badge bg-warning text-dark ms-2">{{ log.promo_label }}</span>
+                            <td class="ps-4">
+                                <div class="fw-bold text-dark font-monospace">{{ log.log_time.split(' ')[1] }}</div>
+                                {% if log.time_gap_mins and log.time_gap_mins < 10 %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.7rem;">
+                                        ⚡ {{ log.time_gap_mins|int }} 分鐘前剛改過
+                                    </span>
+                                {% elif log.time_gap_mins %}
+                                    <small class="text-muted" style="font-size: 0.7rem;">距上次 {{ log.time_gap_mins|int }} 分</small>
                                 {% else %}
-                                    <span class="badge bg-secondary ms-2 text-opacity-50">原價</span>
+                                    <small class="text-muted" style="font-size: 0.7rem;">(首筆紀錄)</small>
                                 {% endif %}
                             </td>
-                            <td class="text-center">
+
+                            <td>
+                                <span class="fw-bold">{{ log.staff_name }}</span>
+                            </td>
+
+                            <td>
+                                <div class="fw-bold text-primary">{{ log.product_name }}</div>
+                                <small class="text-muted">{{ log.chain_name }} | {{ log.spec }} {{ log.material }}</small>
+                            </td>
+
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if not log.is_first_log and log.new_price != log.prev_price %}
+                                        <span class="text-muted text-decoration-line-through me-2">${{ log.prev_price }}</span>
+                                        <i class="bi bi-arrow-right-short text-muted"></i>
+                                        <span class="fs-5 fw-bold ms-2 text-dark">${{ log.new_price }}</span>
+                                        
+                                        {% if log.diff_pct > 0 %}
+                                            <span class="badge bg-danger ms-2">🔺 {{ log.diff_pct }}%</span>
+                                        {% elif log.diff_pct < 0 %}
+                                            <span class="badge bg-success ms-2">🔻 {{ log.diff_pct|abs }}%</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="fs-5 fw-bold text-dark">${{ log.new_price }}</span>
+                                        {% if log.is_first_log %}
+                                            <span class="badge bg-secondary bg-opacity-25 text-dark ms-2">初始</span>
+                                        {% else %}
+                                            <span class="badge bg-light text-muted border ms-2">無變化</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </div>
+                                {% if log.promo_label %}
+                                    <div class="mt-1"><span class="badge bg-warning text-dark">{{ log.promo_label }}</span></div>
+                                {% endif %}
+                            </td>
+
+                            <td>
                                 {% if log.status == 1 %}
                                     <span class="badge bg-success">有效</span>
                                 {% else %}
                                     <span class="badge bg-secondary">已作廢</span>
-                                    {% if log.is_paid == 0 %}
-                                    <br><small class="text-danger" style="font-size: 0.7rem;">(獎金已收回)</small>
-                                    {% endif %}
                                 {% endif %}
                             </td>
+
                             <td class="text-end pe-4">
                                 {% if log.status == 1 %}
-                                    <form action="/admin/audit/toggle" method="POST" class="d-inline" 
-                                          onsubmit="return confirm('⚠️ 確定要作廢這筆紀錄嗎？\n\n1. 此價格將不列入比價\n2. 該員工將被扣除 $5 (若錢包足夠)');">
+                                    <form action="/admin/audit/toggle" method="POST" class="d-inline" onsubmit="return confirm('確定作廢？');">
                                         <input type="hidden" name="log_id" value="{{ log.id }}">
                                         <input type="hidden" name="return_date" value="{{ current_date }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger">
-                                            <i class="bi bi-x-circle"></i> 作廢
-                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i></button>
                                     </form>
                                 {% else %}
-                                    <button class="btn btn-sm btn-light text-muted border" disabled>無效紀錄</button>
+                                    <button class="btn btn-sm btn-light border" disabled>無效</button>
                                 {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
                     {% else %}
-                        <tr>
-                            <td colspan="6" class="text-center py-5 text-muted">
-                                <i class="bi bi-clipboard-check fs-1 d-block mb-3 opacity-25"></i>
-                                <h5>查無資料</h5>
-                                <p class="mb-0">該日期沒有任何盤點紀錄。</p>
-                            </td>
-                        </tr>
+                        <tr><td colspan="6" class="text-center py-5">查無資料</td></tr>
                     {% endif %}
                 </tbody>
             </table>
