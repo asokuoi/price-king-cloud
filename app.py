@@ -267,14 +267,14 @@ def api_price_update():
     
     conn = get_db(); cur = conn.cursor()
     try:
-        # ✅ FIX: ? -> %s
+        # 1. 驗證員工身分
         cur.execute("SELECT status, name, wallet, level FROM staff WHERE line_id = %s", (d['line_id'],))
         staff_res = cur.fetchone()
         if not staff_res: return jsonify({'status': 'error', 'msg': '未授權用戶'})
         staff = dict(staff_res)
         if staff.get('status', 1) == 0: return jsonify({'status': 'error', 'msg': '帳號已停權'})
-        current_level = staff.get('level', 1)
-
+        
+        # 2. 處理價格數據
         final_price = to_float(d.get('price'))
         base_price = to_float(d.get('base_price'))
         pt = to_int(d.get('promo_type'), 1)
@@ -292,57 +292,61 @@ def api_price_update():
         elif pt == 5: promo_label = f"第{pq}件${int(pv)}"
         elif pt == 6: promo_label = f"第{pq}件{int(pv/10) if pv%10==0 else int(pv)}折"
 
-        # ✅ FIX: ? -> %s, date() -> DATE(.. AT TIME ZONE)
-        # PostgreSQL 的 date() 比較嚴格，這裡用日期比對
-        cur.execute("""
-            SELECT id, staff_line_id FROM price_logs 
-            WHERE product_id=%s AND chain_id=%s AND status=1 
-            AND DATE(log_time + interval '8 hours') = DATE(CURRENT_TIMESTAMP + interval '8 hours')
-        """, (d['product_id'], d['chain_id']))
-        prev_log = cur.fetchone()
+        # 3. 🔥 獎金判定邏輯 (當日不重複計費)
+        # 檢查：該員工、該商品、該通路，在「今天 (台灣時間)」是否有過紀錄？
+        # 注意：這裡的 CURRENT_TIMESTAMP 是 UTC，所以我們要轉成台灣時間來比對日期
+        check_sql = """
+            SELECT id FROM price_logs 
+            WHERE staff_line_id = %s AND product_id = %s AND chain_id = %s
+            AND DATE(log_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Taipei') = DATE(CURRENT_TIMESTAMP AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Taipei')
+            LIMIT 1
+        """
+        cur.execute(check_sql, (d['line_id'], d['product_id'], d['chain_id']))
+        has_record_today = cur.fetchone()
+        
+        should_pay = False
+        if not has_record_today:
+            should_pay = True  # 今天第一次改，發錢
+            is_paid_val = 1
+        else:
+            should_pay = False # 今天已經改過 (或是改錯又改)，不重複發錢
+            is_paid_val = 0
 
-        if prev_log:
-            prev_log_id = prev_log['id']
-            prev_staff_id = prev_log['staff_line_id']
-            # ✅ FIX: ? -> %s
-            cur.execute("SELECT level FROM staff WHERE line_id=%s", (prev_staff_id,))
-            prev_staff_res = cur.fetchone()
-            prev_level = prev_staff_res['level'] if prev_staff_res else 0
-
-            if current_level >= prev_level:
-                # ✅ FIX: ? -> %s
-                cur.execute("UPDATE price_logs SET status=0 WHERE id=%s", (prev_log_id,))
-                cur.execute("UPDATE staff SET wallet = wallet - 5 WHERE line_id=%s AND wallet >= 5", (prev_staff_id,))
-                
-        # ✅ FIX: ? -> %s
+        # 4. 更新 prices 主表 (🔥 修正：使用純 UTC CURRENT_TIMESTAMP)
         cur.execute("SELECT id FROM prices WHERE product_id=%s AND chain_id=%s", (d['product_id'], d['chain_id']))
         row = cur.fetchone()
         
         if row:
-            # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
             sql = """UPDATE prices SET 
                      price=%s, base_price=%s, promo_type=%s, promo_qty=%s, promo_val=%s, promo_label=%s, 
-                     update_time=CURRENT_TIMESTAMP + interval '8 hours', updated_by_line_id=%s 
+                     update_time=CURRENT_TIMESTAMP, updated_by_line_id=%s 
                      WHERE id=%s"""
             cur.execute(sql, (final_price, base_price, pt, pq, pv, promo_label, d['line_id'], row['id']))
         else:
-            # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
             sql = """INSERT INTO prices 
                      (product_id, chain_id, price, base_price, promo_type, promo_qty, promo_val, promo_label, update_time, updated_by_line_id) 
-                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP + interval '8 hours',%s)"""
+                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,%s)"""
             cur.execute(sql, (d['product_id'], d['chain_id'], final_price, base_price, pt, pq, pv, promo_label, d['line_id']))
         
-        # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
+        # 5. 寫入 Log (🔥 修正：使用純 UTC CURRENT_TIMESTAMP)
+        # 這裡不管有沒有發錢，都要寫入 Log，這樣戰情室才能看到完整的修改歷程
         cur.execute("""INSERT INTO price_logs 
                        (staff_line_id, product_id, chain_id, new_price, base_price, promo_type, promo_qty, promo_val, promo_label, log_time, is_paid, status) 
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP + interval '8 hours',0, 1)""", 
-                       (d['line_id'], d['product_id'], d['chain_id'], final_price, base_price, pt, pq, pv, promo_label))
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,%s, 1)""", 
+                       (d['line_id'], d['product_id'], d['chain_id'], final_price, base_price, pt, pq, pv, promo_label, is_paid_val))
         
-        # ✅ FIX: ? -> %s
-        cur.execute("UPDATE staff SET wallet = wallet + 5 WHERE line_id = %s", (d['line_id'],))
+        # 6. 發放獎金 (只在 should_pay 為 True 時執行)
+        if should_pay:
+            cur.execute("UPDATE staff SET wallet = wallet + 5 WHERE line_id = %s", (d['line_id'],))
+        
         conn.commit()
-        return jsonify({'status':'success', 'label': promo_label})
-    except Exception as e: return jsonify({'status':'error', 'msg':str(e)}), 500
+        
+        # 回傳訊息多帶一個 is_paid 讓前端知道有沒有拿到錢 (可選)
+        return jsonify({'status':'success', 'label': promo_label, 'bonus': 5 if should_pay else 0})
+        
+    except Exception as e: 
+        conn.rollback()
+        return jsonify({'status':'error', 'msg':str(e)}), 500
     finally: conn.close()
 # ----------------------------------------------------
 # 🛒 消費者搜尋 (V89.2: 恢復 GPS 與 ID 紀錄)
