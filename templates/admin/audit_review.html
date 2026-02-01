@@ -2,14 +2,14 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold"><i class="bi bi-speedometer2 me-2"></i> 戰情勾稽室 V2.0</h3>
+    <h3 class="fw-bold"><i class="bi bi-speedometer2 me-2"></i> 戰情勾稽室</h3>
 </div>
 
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body bg-light rounded">
         <form action="/admin/audit" method="GET" class="row g-2 align-items-center">
             <div class="col-auto">
-                <label class="fw-bold small text-muted">日期</label>
+                <label class="fw-bold small text-muted">查詢日期</label>
                 <input type="date" name="query_date" class="form-control form-control-sm" value="{{ current_date }}" onchange="this.form.submit()">
             </div>
             
@@ -18,7 +18,7 @@
                 <select name="chain_id" class="form-select form-select-sm" onchange="this.form.submit()">
                     <option value="">全部通路</option>
                     {% for c in chains %}
-                    <option value="{{ c.id }}" {{ 'selected' if sel_chain == str(c.id) else '' }}>{{ c.name }}</option>
+                    <option value="{{ c.id }}" {{ 'selected' if sel_chain == c.id|string else '' }}>{{ c.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -34,7 +34,7 @@
             </div>
             
             <div class="col-auto ms-auto">
-                 <a href="/admin/audit" class="btn btn-sm btn-outline-secondary">重置篩選</a>
+                 <a href="/admin/audit" class="btn btn-sm btn-outline-secondary">重置</a>
             </div>
         </form>
     </div>
@@ -50,7 +50,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4">時間 / 間隔</th>
+                        <th class="ps-4">時間 / 警示</th>
                         <th>員工</th>
                         <th>通路 / 商品</th>
                         <th>價格變動 (舊➔新)</th>
@@ -62,14 +62,15 @@
                     {% if logs %}
                         {% for log in logs %}
                         <tr class="{{ 'table-active opacity-50' if log.status == 0 else '' }}">
+                            
                             <td class="ps-4">
-                                <div class="fw-bold text-dark font-monospace">{{ log.log_time.split(' ')[1] }}</div>
-                                {% if log.time_gap_mins and log.time_gap_mins < 10 %}
+                                <div class="fw-bold text-dark font-monospace">{{ log.display_time }}</div>
+                                {% if log.time_gap_mins < 10 and not log.is_first_log %}
                                     <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.7rem;">
-                                        ⚡ {{ log.time_gap_mins|int }} 分鐘前剛改過
+                                        ⚡ {{ log.time_gap_mins }}分前剛改過
                                     </span>
-                                {% elif log.time_gap_mins %}
-                                    <small class="text-muted" style="font-size: 0.7rem;">距上次 {{ log.time_gap_mins|int }} 分</small>
+                                {% elif not log.is_first_log %}
+                                    <small class="text-muted" style="font-size: 0.7rem;">距上次 {{ log.time_gap_mins }} 分</small>
                                 {% else %}
                                     <small class="text-muted" style="font-size: 0.7rem;">(首筆紀錄)</small>
                                 {% endif %}
@@ -81,7 +82,11 @@
 
                             <td>
                                 <div class="fw-bold text-primary">{{ log.product_name }}</div>
-                                <small class="text-muted">{{ log.chain_name }} | {{ log.spec }} {{ log.material }}</small>
+                                <small class="text-muted">
+                                    {{ log.chain_name }} | 
+                                    {{ log.spec or '' }} 
+                                    {% if log.material %}<span class="badge bg-info text-dark bg-opacity-10 border border-info border-opacity-25">{{ log.material }}</span>{% endif %}
+                                </small>
                             </td>
 
                             <td>
@@ -99,9 +104,9 @@
                                     {% else %}
                                         <span class="fs-5 fw-bold text-dark">${{ log.new_price }}</span>
                                         {% if log.is_first_log %}
-                                            <span class="badge bg-secondary bg-opacity-25 text-dark ms-2">初始</span>
+                                            <span class="badge bg-secondary bg-opacity-25 text-dark ms-2" style="font-size: 0.7rem;">今日首筆</span>
                                         {% else %}
-                                            <span class="badge bg-light text-muted border ms-2">無變化</span>
+                                            <span class="badge bg-light text-muted border ms-2" style="font-size: 0.7rem;">無變化</span>
                                         {% endif %}
                                     {% endif %}
                                 </div>
@@ -120,10 +125,10 @@
 
                             <td class="text-end pe-4">
                                 {% if log.status == 1 %}
-                                    <form action="/admin/audit/toggle" method="POST" class="d-inline" onsubmit="return confirm('確定作廢？');">
+                                    <form action="/admin/audit/toggle" method="POST" class="d-inline" onsubmit="return confirm('⚠️ 確定要作廢這筆紀錄嗎？\n該紀錄將不列入比價，且若有發放獎金將被標記。');">
                                         <input type="hidden" name="log_id" value="{{ log.id }}">
                                         <input type="hidden" name="return_date" value="{{ current_date }}">
-                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> 作廢</button>
                                     </form>
                                 {% else %}
                                     <button class="btn btn-sm btn-light border" disabled>無效</button>
