@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold"><i class="bi bi-speedometer2 me-2"></i> 戰情勾稽室</h3>
+    <h3 class="fw-bold"><i class="bi bi-speedometer2 me-2"></i> 戰情勾稽室 V2.1</h3>
 </div>
 
 <div class="card shadow-sm border-0 mb-4">
@@ -12,7 +12,6 @@
                 <label class="fw-bold small text-muted">查詢日期</label>
                 <input type="date" name="query_date" class="form-control form-control-sm" value="{{ current_date }}" onchange="this.form.submit()">
             </div>
-            
             <div class="col-auto">
                 <label class="fw-bold small text-muted">通路</label>
                 <select name="chain_id" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -22,7 +21,6 @@
                     {% endfor %}
                 </select>
             </div>
-
             <div class="col-auto">
                 <label class="fw-bold small text-muted">員工</label>
                 <select name="staff_id" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -32,7 +30,6 @@
                     {% endfor %}
                 </select>
             </div>
-            
             <div class="col-auto ms-auto">
                  <a href="/admin/audit" class="btn btn-sm btn-outline-secondary">重置</a>
             </div>
@@ -53,7 +50,7 @@
                         <th class="ps-4">時間 / 警示</th>
                         <th>員工</th>
                         <th>通路 / 商品</th>
-                        <th>價格變動 (舊➔新)</th>
+                        <th>變動 (舊➔新)</th>
                         <th>狀態</th>
                         <th class="text-end pe-4">管理</th>
                     </tr>
@@ -63,53 +60,64 @@
                         {% for log in logs %}
                         <tr class="{{ 'table-active opacity-50' if log.status == 0 else '' }}">
                             
-                            <td class="ps-4">
+                            <td class="ps-4" style="min-width: 140px;">
                                 <div class="fw-bold text-dark font-monospace">{{ log.display_time }}</div>
-                                {% if log.time_gap_mins < 10 and not log.is_first_log %}
-                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.7rem;">
-                                        ⚡ {{ log.time_gap_mins }}分前剛改過
-                                    </span>
-                                {% elif not log.is_first_log %}
-                                    <small class="text-muted" style="font-size: 0.7rem;">距上次 {{ log.time_gap_mins }} 分</small>
+                                
+                                {% if log.gap_mins is not none %}
+                                    {% if log.gap_mins < 60 %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.7rem;">
+                                            ⚡ {{ log.gap_mins }}分前剛改
+                                        </span>
+                                    {% elif log.gap_days < 3 %}
+                                        <span class="badge bg-danger text-white" style="font-size: 0.7rem;">
+                                            🔴 {{ log.gap_days }}天內變動
+                                        </span>
+                                    {% elif log.gap_days < 7 %}
+                                        <span class="badge bg-warning text-dark" style="font-size: 0.7rem;">
+                                            🟡 {{ log.gap_days }}天前改過
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-success bg-opacity-25 text-success border border-success" style="font-size: 0.7rem;">
+                                            🟢 穩定 (>7天)
+                                        </span>
+                                    {% endif %}
                                 {% else %}
-                                    <small class="text-muted" style="font-size: 0.7rem;">(首筆紀錄)</small>
+                                    <small class="text-muted" style="font-size: 0.7rem;">(歷史首筆)</small>
                                 {% endif %}
                             </td>
 
-                            <td>
-                                <span class="fw-bold">{{ log.staff_name }}</span>
-                            </td>
+                            <td><span class="fw-bold">{{ log.staff_name }}</span></td>
 
                             <td>
-                                <div class="fw-bold text-primary">{{ log.product_name }}</div>
+                                <div class="d-flex align-items-center">
+                                    <div class="fw-bold text-primary me-2">{{ log.product_name }}</div>
+                                    <button class="btn btn-link p-0 text-secondary" onclick="showHistory({{ log.chain_id }}, {{ log.product_id }}, '{{ log.chain_name }}', '{{ log.product_name }}')">
+                                        <i class="bi bi-clock-history"></i>
+                                    </button>
+                                </div>
                                 <small class="text-muted">
-                                    {{ log.chain_name }} | 
-                                    {{ log.spec or '' }} 
+                                    {{ log.chain_name }} | {{ log.spec or '' }} 
                                     {% if log.material %}<span class="badge bg-info text-dark bg-opacity-10 border border-info border-opacity-25">{{ log.material }}</span>{% endif %}
                                 </small>
                             </td>
 
                             <td>
-                                <div class="d-flex align-items-center">
-                                    {% if not log.is_first_log and log.new_price != log.prev_price %}
-                                        <span class="text-muted text-decoration-line-through me-2">${{ log.prev_price }}</span>
+                                {% if log.gap_mins is not none and log.new_price != log.prev_price_display %}
+                                    <div class="d-flex align-items-center">
+                                        <span class="text-muted text-decoration-line-through me-2">${{ log.prev_price_display }}</span>
                                         <i class="bi bi-arrow-right-short text-muted"></i>
                                         <span class="fs-5 fw-bold ms-2 text-dark">${{ log.new_price }}</span>
-                                        
-                                        {% if log.diff_pct > 0 %}
-                                            <span class="badge bg-danger ms-2">🔺 {{ log.diff_pct }}%</span>
-                                        {% elif log.diff_pct < 0 %}
-                                            <span class="badge bg-success ms-2">🔻 {{ log.diff_pct|abs }}%</span>
-                                        {% endif %}
-                                    {% else %}
-                                        <span class="fs-5 fw-bold text-dark">${{ log.new_price }}</span>
-                                        {% if log.is_first_log %}
-                                            <span class="badge bg-secondary bg-opacity-25 text-dark ms-2" style="font-size: 0.7rem;">今日首筆</span>
-                                        {% else %}
-                                            <span class="badge bg-light text-muted border ms-2" style="font-size: 0.7rem;">無變化</span>
-                                        {% endif %}
+                                    </div>
+                                    {% if log.diff_pct > 0 %}
+                                        <span class="badge bg-danger">🔺 +{{ log.diff_pct }}%</span>
+                                    {% elif log.diff_pct < 0 %}
+                                        <span class="badge bg-success">🔻 {{ log.diff_pct }}%</span>
                                     {% endif %}
-                                </div>
+                                {% else %}
+                                    <span class="fs-5 fw-bold text-dark">${{ log.new_price }}</span>
+                                    <span class="badge bg-light text-muted border ms-2" style="font-size: 0.7rem;">無變化</span>
+                                {% endif %}
+                                
                                 {% if log.promo_label %}
                                     <div class="mt-1"><span class="badge bg-warning text-dark">{{ log.promo_label }}</span></div>
                                 {% endif %}
@@ -125,13 +133,11 @@
 
                             <td class="text-end pe-4">
                                 {% if log.status == 1 %}
-                                    <form action="/admin/audit/toggle" method="POST" class="d-inline" onsubmit="return confirm('⚠️ 確定要作廢這筆紀錄嗎？\n該紀錄將不列入比價，且若有發放獎金將被標記。');">
+                                    <form action="/admin/audit/toggle" method="POST" class="d-inline" onsubmit="return confirm('⚠️ 確定作廢？');">
                                         <input type="hidden" name="log_id" value="{{ log.id }}">
                                         <input type="hidden" name="return_date" value="{{ current_date }}">
-                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i> 作廢</button>
+                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i></button>
                                     </form>
-                                {% else %}
-                                    <button class="btn btn-sm btn-light border" disabled>無效</button>
                                 {% endif %}
                             </td>
                         </tr>
@@ -144,4 +150,79 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title fw-bold" id="histTitle">商品歷史</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>日期</th>
+                                <th>時間</th>
+                                <th>員工</th>
+                                <th>價格</th>
+                                <th>變動</th>
+                            </tr>
+                        </thead>
+                        <tbody id="histBody">
+                            <tr><td colspan="5" class="text-center py-3">載入中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showHistory(chainId, productId, chainName, prodName) {
+    // 1. 設定標題
+    document.getElementById('histTitle').textContent = `${chainName} - ${prodName}`;
+    
+    // 2. 顯示 Modal
+    var myModal = new bootstrap.Modal(document.getElementById('historyModal'));
+    myModal.show();
+    
+    // 3. 清空並顯示 Loading
+    const tbody = document.getElementById('histBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> 載入歷史資料...</td></tr>';
+    
+    // 4. 呼叫 API
+    fetch(`/admin/api/history?chain_id=${chainId}&product_id=${productId}`)
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                if (data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3 text-muted">無歷史紀錄</td></tr>';
+                    return;
+                }
+                
+                let html = '';
+                data.data.forEach(row => {
+                    html += `
+                        <tr>
+                            <td><small>${row.date}</small></td>
+                            <td><small>${row.time}</small></td>
+                            <td>${row.staff}</td>
+                            <td class="fw-bold">$${row.price}</td>
+                            <td><small>${row.diff}</small></td>
+                        </tr>
+                    `;
+                });
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">載入失敗: ${data.msg}</td></tr>`;
+            }
+        })
+        .catch(err => {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">系統錯誤</td></tr>`;
+        });
+}
+</script>
 {% endblock %}

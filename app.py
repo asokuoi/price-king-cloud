@@ -571,120 +571,179 @@ def admin_dashboard():
 
 #---------戰情勾稽是加強版202621
 
+# ==========================================
+# ⚡ 戰情室 API：取得單一商品歷史紀錄 (給 Modal 用)
+# ==========================================
+@app.route('/admin/api/history')
+def admin_api_history():
+    if not is_admin_logged_in(): return jsonify({'error': 'Unauthorized'}), 403
+    
+    chain_id = request.args.get('chain_id')
+    product_id = request.args.get('product_id')
+    
+    if not chain_id or not product_id:
+        return jsonify({'error': 'Missing parameters'}), 400
+        
+    conn = get_db(); cur = conn.cursor()
+    try:
+        # 抓取最近 10 筆紀錄
+        sql = """
+            SELECT l.new_price, l.log_time, l.promo_label, s.name as staff_name
+            FROM price_logs l
+            LEFT JOIN staff s ON l.staff_line_id = s.line_id
+            WHERE l.chain_id = %s AND l.product_id = %s AND l.status = 1
+            ORDER BY l.log_time DESC
+            LIMIT 10
+        """
+        cur.execute(sql, (chain_id, product_id))
+        rows = [dict(r) for r in cur.fetchall()]
+        
+        # 處理時間與價格變動
+        history = []
+        for i, row in enumerate(rows):
+            # 時間轉台灣時區
+            db_time = row['log_time']
+            if isinstance(db_time, str):
+                try: db_time = datetime.strptime(db_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                except: db_time = datetime.now()
+            
+            tw_time = db_time + timedelta(hours=8)
+            
+            # 計算漲跌 (跟下一筆比，因為是倒序)
+            diff_display = "-"
+            if i < len(rows) - 1:
+                prev_price = rows[i+1]['new_price']
+                curr_price = row['new_price']
+                if prev_price > 0 and curr_price != prev_price:
+                    diff = curr_price - prev_price
+                    pct = round((diff / prev_price) * 100, 1)
+                    if diff > 0: diff_display = f"🔺 +{pct}%"
+                    else: diff_display = f"🔻 {pct}%"
+            
+            history.append({
+                'date': tw_time.strftime('%Y/%m/%d'),
+                'time': tw_time.strftime('%H:%M'),
+                'staff': row['staff_name'] or '未知',
+                'price': row['new_price'],
+                'promo': row['promo_label'] or '',
+                'diff': diff_display
+            })
+            
+        return jsonify({'status': 'success', 'data': history})
+    except Exception as e:
+        return jsonify({'status': 'error', 'msg': str(e)})
+    finally:
+        conn.close()
+
+# ==========================================
+# ⚡ 戰情勾稽室 (V2.1 歷史回朔版)
+# ==========================================
 @app.route('/admin/audit')
 def admin_audit_review():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     
-    # 1. 接收參數
     query_date = request.args.get('query_date', datetime.now().strftime('%Y-%m-%d'))
     filter_chain = request.args.get('chain_id', '')
     filter_staff = request.args.get('staff_id', '')
     
     conn = get_db(); cur = conn.cursor()
 
-    # 2. 準備下拉選單資料 (如果資料表不存在會給空列表，防止報錯)
+    # 下拉選單
     chains = []; staffs = []
     try:
-        cur.execute("SELECT id, name FROM chains ORDER BY id")
-        chains = cur.fetchall()
-        cur.execute("SELECT line_id, name FROM staff ORDER BY name")
-        staffs = cur.fetchall()
-    except Exception as e:
-        print(f"Error loading chains/staff: {e}")
+        cur.execute("SELECT id, name FROM chains ORDER BY id"); chains = cur.fetchall()
+        cur.execute("SELECT line_id, name FROM staff ORDER BY name"); staffs = cur.fetchall()
+    except: pass
 
-    # 3. 核心查詢 (只抓確認存在的欄位)
-    # 邏輯：先全部抓出來，讓 Python 去處理比較複雜的計算
+    # 🔥 核心查詢 (包含子查詢 Subqueries 抓取 "上一次" 的資料)
+    # 這讓我們能跨越日期的限制，精準計算距離上次修改過了幾天
     sql = """
-        SELECT l.id, l.staff_line_id, l.chain_id, l.product_id,
-               l.new_price, l.base_price, l.log_time, l.status, l.promo_label,
-               s.name as staff_name, 
-               c.name as chain_name, 
-               p.name as product_name, p.spec, p.material
+        SELECT 
+            l.id, l.staff_line_id, l.chain_id, l.product_id,
+            l.new_price, l.log_time, l.status, l.promo_label,
+            s.name as staff_name, 
+            c.name as chain_name, 
+            p.name as product_name, p.spec, p.material,
+            
+            -- 子查詢：找出這筆記錄 "之前" 最近的一次時間
+            (SELECT log_time FROM price_logs l2 
+             WHERE l2.chain_id = l.chain_id AND l2.product_id = l.product_id AND l2.log_time < l.log_time 
+             ORDER BY l2.log_time DESC LIMIT 1) as prev_time_db,
+             
+            -- 子查詢：找出這筆記錄 "之前" 最近的一次價格
+            (SELECT new_price FROM price_logs l3 
+             WHERE l3.chain_id = l.chain_id AND l3.product_id = l.product_id AND l3.log_time < l.log_time 
+             ORDER BY l3.log_time DESC LIMIT 1) as prev_price_db
+
         FROM price_logs l
         LEFT JOIN staff s ON l.staff_line_id = s.line_id
         LEFT JOIN chains c ON l.chain_id = c.id
         LEFT JOIN products p ON l.product_id = p.id
-        WHERE DATE(l.log_time + interval '8 hours') = %s
+        WHERE DATE(l.log_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Taipei') = %s
     """
     params = [query_date]
 
-    # 加入篩選條件
-    if filter_chain:
-        sql += " AND l.chain_id = %s"
-        params.append(filter_chain)
-    if filter_staff:
-        sql += " AND l.staff_line_id = %s"
-        params.append(filter_staff)
+    if filter_chain: sql += " AND l.chain_id = %s"; params.append(filter_chain)
+    if filter_staff: sql += " AND l.staff_line_id = %s"; params.append(filter_staff)
 
-    # 🔥 關鍵：必須依照 (通路, 商品, 時間) 排序，Python 才能算出前後差異
-    sql += " ORDER BY l.chain_id, l.product_id, l.log_time ASC"
+    sql += " ORDER BY l.log_time DESC" # 最新發生的在上面
 
     processed_logs = []
     try:
         cur.execute(sql, tuple(params))
-        raw_logs = [dict(r) for r in cur.fetchall()]
-        
-        # 4. Python 計算邏輯 (補足資料庫缺少的 old_price)
-        # 用字典記住每個商品「上一次」的狀態
-        last_state = {} # Key: f"{chain_id}-{product_id}"
-
-        for log in raw_logs:
-            key = f"{log['chain_id']}-{log['product_id']}"
+        for r in cur.fetchall():
+            log = dict(r)
             
-            # 確保時間格式正確 (Postgres datetime -> Python datetime)
-            curr_time = log['log_time'] 
-            if isinstance(curr_time, str): # 萬一是字串，嘗試轉換
-                try: curr_time = datetime.strptime(curr_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
-                except: curr_time = datetime.now()
+            # 時間處理 (統一轉台灣時間)
+            db_time = log['log_time']
+            if isinstance(db_time, str):
+                try: db_time = datetime.strptime(db_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                except: db_time = datetime.now()
             
-            # 轉成字串給前端顯示
-            log['display_time'] = curr_time.strftime('%H:%M') 
+            tw_time = db_time + timedelta(hours=8)
+            log['display_time'] = tw_time.strftime('%H:%M')
             
-            # 開始比對
-            if key in last_state:
-                prev = last_state[key]
-                # A. 計算時間差 (分鐘)
-                diff_mins = (curr_time - prev['time']).total_seconds() / 60
-                log['time_gap_mins'] = int(diff_mins)
+            # 計算與 "上一次" 的間隔
+            if log['prev_time_db']:
+                prev_time = log['prev_time_db']
+                if isinstance(prev_time, str):
+                    try: prev_time = datetime.strptime(prev_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                    except: prev_time = db_time
                 
-                # B. 計算價格變動
-                log['prev_price'] = prev['price']
-                if prev['price'] > 0:
-                    diff = log['new_price'] - prev['price']
-                    log['diff_pct'] = round((diff / prev['price']) * 100, 1)
+                diff_seconds = (db_time - prev_time).total_seconds()
+                log['gap_mins'] = int(diff_seconds / 60)
+                log['gap_days'] = round(diff_seconds / 86400, 1)
+                
+                # 價格變動
+                prev_price = log['prev_price_db']
+                if prev_price and prev_price > 0:
+                    diff = log['new_price'] - prev_price
+                    log['diff_pct'] = round(((log['new_price'] - prev_price) / prev_price) * 100, 1)
+                    log['prev_price_display'] = prev_price
                 else:
                     log['diff_pct'] = 0
-                
-                # 標記：這是不是第一筆？
-                log['is_first_log'] = False
+                    log['prev_price_display'] = log['new_price']
             else:
-                # 這是當天第一筆，沒有上一筆可比
-                log['time_gap_mins'] = 9999 # 設大一點代表很久沒改
-                log['prev_price'] = log['new_price'] # 假設前價=現價
+                # 這是該商品有史以來第一筆紀錄
+                log['gap_mins'] = None # 無法計算
+                log['gap_days'] = 999
                 log['diff_pct'] = 0
-                log['is_first_log'] = True
-            
-            # 更新狀態，給下一筆用
-            last_state[key] = { 'price': log['new_price'], 'time': curr_time }
+                log['prev_price_display'] = None
+
             processed_logs.append(log)
 
     except Exception as e:
         print(f"❌ SQL Audit Error: {e}")
         conn.close()
-        return f"系統查詢錯誤 (Internal Error): {e}"
+        return f"System Error: {e}"
 
     conn.close()
-
-    # 5. 反轉列表 (讓最新的時間顯示在最上面)
-    processed_logs.reverse()
 
     return render_template('admin/audit_review.html', 
                            logs=processed_logs, 
                            current_date=query_date,
-                           chains=chains,
-                           staffs=staffs,
-                           sel_chain=filter_chain,
-                           sel_staff=filter_staff)
+                           chains=chains, staffs=staffs,
+                           sel_chain=filter_chain, sel_staff=filter_staff)
 
 
 @app.route('/admin/audit/toggle', methods=['POST'])
