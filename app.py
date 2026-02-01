@@ -590,7 +590,7 @@ def admin_api_history():
         
     conn = get_db(); cur = conn.cursor()
     try:
-        # 抓取最近 10 筆紀錄
+        # 1. 抓取最近 10 筆紀錄 (這裡的 log_time 是 UTC)
         sql = """
             SELECT l.new_price, l.log_time, l.promo_label, s.name as staff_name
             FROM price_logs l
@@ -602,18 +602,19 @@ def admin_api_history():
         cur.execute(sql, (chain_id, product_id))
         rows = [dict(r) for r in cur.fetchall()]
         
-        # 處理時間與價格變動
+        # 2. 轉換時區與計算漲跌
         history = []
         for i, row in enumerate(rows):
-            # 時間轉台灣時區
+            # A. 時間處理：UTC -> 台灣時間 (+8)
             db_time = row['log_time']
             if isinstance(db_time, str):
                 try: db_time = datetime.strptime(db_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
                 except: db_time = datetime.now()
             
+            # 手動加 8 小時
             tw_time = db_time + timedelta(hours=8)
             
-            # 計算漲跌 (跟下一筆比，因為是倒序)
+            # B. 漲跌幅計算 (跟下一筆比)
             diff_display = "-"
             if i < len(rows) - 1:
                 prev_price = rows[i+1]['new_price']
@@ -625,8 +626,8 @@ def admin_api_history():
                     else: diff_display = f"🔻 {pct}%"
             
             history.append({
-                'date': tw_time.strftime('%Y/%m/%d'),
-                'time': tw_time.strftime('%H:%M'),
+                'date': tw_time.strftime('%Y/%m/%d'), # 顯示台灣日期
+                'time': tw_time.strftime('%H:%M'),    # 顯示台灣時間
                 'staff': row['staff_name'] or '未知',
                 'price': row['new_price'],
                 'promo': row['promo_label'] or '',
@@ -646,6 +647,7 @@ def admin_api_history():
 def admin_audit_review():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
     
+    # query_date 是您選的「台灣日期」
     query_date = request.args.get('query_date', datetime.now().strftime('%Y-%m-%d'))
     filter_chain = request.args.get('chain_id', '')
     filter_staff = request.args.get('staff_id', '')
@@ -659,8 +661,9 @@ def admin_audit_review():
         cur.execute("SELECT line_id, name FROM staff ORDER BY name"); staffs = cur.fetchall()
     except: pass
 
-    # 🔥 核心查詢 (包含子查詢 Subqueries 抓取 "上一次" 的資料)
-    # 這讓我們能跨越日期的限制，精準計算距離上次修改過了幾天
+    # 🔥 核心查詢：
+    # 1. WHERE: 把 UTC 轉成台灣時間來比對日期 (確保查到的是台灣的今天)
+    # 2. Subquery: 找上一筆時，直接比對 UTC 時間即可 (log_time < l.log_time)
     sql = """
         SELECT 
             l.id, l.staff_line_id, l.chain_id, l.product_id,
@@ -669,12 +672,12 @@ def admin_audit_review():
             c.name as chain_name, 
             p.name as product_name, p.spec, p.material,
             
-            -- 子查詢：找出這筆記錄 "之前" 最近的一次時間
+            -- 子查詢：找上一筆時間 (UTC)
             (SELECT log_time FROM price_logs l2 
              WHERE l2.chain_id = l.chain_id AND l2.product_id = l.product_id AND l2.log_time < l.log_time 
              ORDER BY l2.log_time DESC LIMIT 1) as prev_time_db,
              
-            -- 子查詢：找出這筆記錄 "之前" 最近的一次價格
+            -- 子查詢：找上一筆價格
             (SELECT new_price FROM price_logs l3 
              WHERE l3.chain_id = l.chain_id AND l3.product_id = l.product_id AND l3.log_time < l.log_time 
              ORDER BY l3.log_time DESC LIMIT 1) as prev_price_db
@@ -683,6 +686,7 @@ def admin_audit_review():
         LEFT JOIN staff s ON l.staff_line_id = s.line_id
         LEFT JOIN chains c ON l.chain_id = c.id
         LEFT JOIN products p ON l.product_id = p.id
+        -- 這裡最關鍵：把 log_time (UTC) 轉成 台灣時間 (+8) 再取 DATE
         WHERE DATE(l.log_time AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Taipei') = %s
     """
     params = [query_date]
@@ -690,7 +694,7 @@ def admin_audit_review():
     if filter_chain: sql += " AND l.chain_id = %s"; params.append(filter_chain)
     if filter_staff: sql += " AND l.staff_line_id = %s"; params.append(filter_staff)
 
-    sql += " ORDER BY l.log_time DESC" # 最新發生的在上面
+    sql += " ORDER BY l.log_time DESC"
 
     processed_logs = []
     try:
@@ -698,22 +702,23 @@ def admin_audit_review():
         for r in cur.fetchall():
             log = dict(r)
             
-            # 時間處理 (統一轉台灣時間)
+            # A. 顯示時間處理：UTC -> 台灣時間 (+8)
             db_time = log['log_time']
             if isinstance(db_time, str):
                 try: db_time = datetime.strptime(db_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
                 except: db_time = datetime.now()
             
             tw_time = db_time + timedelta(hours=8)
-            log['display_time'] = tw_time.strftime('%H:%M')
+            log['display_time'] = tw_time.strftime('%H:%M') # 介面顯示用
             
-            # 計算與 "上一次" 的間隔
+            # B. 計算間隔 (全部用原始 UTC 來算秒數差，這樣最準)
             if log['prev_time_db']:
                 prev_time = log['prev_time_db']
                 if isinstance(prev_time, str):
                     try: prev_time = datetime.strptime(prev_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
                     except: prev_time = db_time
                 
+                # 直接相減 (UTC - UTC)
                 diff_seconds = (db_time - prev_time).total_seconds()
                 log['gap_mins'] = int(diff_seconds / 60)
                 log['gap_days'] = round(diff_seconds / 86400, 1)
@@ -728,8 +733,7 @@ def admin_audit_review():
                     log['diff_pct'] = 0
                     log['prev_price_display'] = log['new_price']
             else:
-                # 這是該商品有史以來第一筆紀錄
-                log['gap_mins'] = None # 無法計算
+                log['gap_mins'] = None
                 log['gap_days'] = 999
                 log['diff_pct'] = 0
                 log['prev_price_display'] = None
