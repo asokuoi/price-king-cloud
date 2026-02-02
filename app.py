@@ -590,48 +590,54 @@ def admin_api_history():
         
     conn = get_db(); cur = conn.cursor()
     try:
-        # 1. 抓取最近 10 筆紀錄 (這裡的 log_time 是 UTC)
+        # 🔥 修改點：拿掉 l.status = 1，顯示所有歷史
         sql = """
-            SELECT l.new_price, l.log_time, l.promo_label, s.name as staff_name
+            SELECT l.new_price, l.log_time, l.promo_label, l.status, s.name as staff_name
             FROM price_logs l
             LEFT JOIN staff s ON l.staff_line_id = s.line_id
-            WHERE l.chain_id = %s AND l.product_id = %s AND l.status = 1
+            WHERE l.chain_id = %s AND l.product_id = %s 
             ORDER BY l.log_time DESC
-            LIMIT 10
+            LIMIT 20
         """
         cur.execute(sql, (chain_id, product_id))
         rows = [dict(r) for r in cur.fetchall()]
         
-        # 2. 轉換時區與計算漲跌
         history = []
         for i, row in enumerate(rows):
-            # A. 時間處理：UTC -> 台灣時間 (+8)
+            # A. 時間處理 (UTC -> 台灣時間)
             db_time = row['log_time']
             if isinstance(db_time, str):
                 try: db_time = datetime.strptime(db_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
                 except: db_time = datetime.now()
             
-            # 手動加 8 小時
             tw_time = db_time + timedelta(hours=8)
             
-            # B. 漲跌幅計算 (跟下一筆比)
+            # B. 漲跌幅
             diff_display = "-"
             if i < len(rows) - 1:
                 prev_price = rows[i+1]['new_price']
                 curr_price = row['new_price']
+                # 只有當前後價格真的不同時才算漲跌
                 if prev_price > 0 and curr_price != prev_price:
                     diff = curr_price - prev_price
                     pct = round((diff / prev_price) * 100, 1)
                     if diff > 0: diff_display = f"🔺 +{pct}%"
                     else: diff_display = f"🔻 {pct}%"
             
+            # C. 狀態標示 (如果是作廢的紀錄，加個標記)
+            status_text = ""
+            if row['status'] == 0:
+                status_text = "(已作廢)"
+            
             history.append({
-                'date': tw_time.strftime('%Y/%m/%d'), # 顯示台灣日期
-                'time': tw_time.strftime('%H:%M'),    # 顯示台灣時間
+                'date': tw_time.strftime('%Y/%m/%d'),
+                'time': tw_time.strftime('%H:%M'),
                 'staff': row['staff_name'] or '未知',
                 'price': row['new_price'],
                 'promo': row['promo_label'] or '',
-                'diff': diff_display
+                'diff': diff_display,
+                'status': row['status'],     # 傳回狀態給前端判斷顏色
+                'status_text': status_text
             })
             
         return jsonify({'status': 'success', 'data': history})
