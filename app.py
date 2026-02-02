@@ -49,6 +49,36 @@ handler = WebhookHandler(channel_secret)
 # ==========================================
 # 🗄️ 資料庫連線 Helper (補在這裡！)
 # ==========================================
+
+# ... (原本的 import) ...
+
+app = Flask(__name__)
+# ... (原本的 secret_key 設定) ...
+
+# 👇👇👇【新增這段：萬能路徑校正器】👇👇👇
+# 這會捕捉所有 "/search/..." 開頭的錯誤請求，強制導回正軌
+@app.route('/search/<path:subpath>')
+def fix_search_path(subpath):
+    # 取得原始的 query string (例如 ?keyword=...)
+    query_string = request.query_string.decode('utf-8')
+    
+    # 如果是 audit (盤點頁) 誤入歧途
+    if subpath.startswith('audit'):
+        target = '/audit'
+    # 否則一律當作是搜尋
+    else:
+        target = '/search'
+    
+    # 重組正確網址
+    if query_string:
+        target += f"?{query_string}"
+        
+    print(f"🔥 [Auto Fix] Redirecting /{subpath} to {target}")
+    return redirect(target, code=301)
+# 👆👆👆【新增結束】👆👆👆
+
+# ... (後面接原本的 get_db 函式) ...
+
 def get_db():
     """建立 PostgreSQL 連線 (支援 Render 格式修正)"""
     db_url = os.environ.get('DATABASE_URL')
