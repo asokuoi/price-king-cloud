@@ -38,10 +38,32 @@
         }
         .filter-chip i { margin-right: 4px; font-size: 0.8rem; }
 
-        /* 商品卡片優化 (List Group Style) */
+        /* =========================================
+           商品卡片視覺優化 (Visual Upgrade)
+           ========================================= */
         .product-card { 
-            background: #fff; border-radius: 12px; margin-bottom: 16px; 
-            border: 1px solid #e9ecef; overflow: hidden; position: relative;
+            background: #fff; 
+            border-radius: 12px; 
+            margin-bottom: 16px; 
+            /* 增加陰影與邊框，解決視覺不清問題 */
+            border: 1px solid #dee2e6; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            overflow: hidden; 
+            position: relative;
+            transition: transform 0.2s;
+        }
+        
+        /* 📍 模式 B 專屬：左側藍色邊條 */
+        .product-card.store-mode {
+            border-left: 5px solid #0d6efd; 
+        }
+
+        /* 📌 置頂卡片 (您選擇的) */
+        .product-card.pinned-card {
+            border: 2px solid #0d6efd;
+            background: #f8fbff;
+            box-shadow: 0 0 15px rgba(13, 110, 253, 0.15); /* 藍色光暈 */
+            z-index: 5;
         }
         
         /* 👑 全場 CP 總霸主樣式 */
@@ -49,13 +71,18 @@
             border: 2px solid #ffc107; 
             box-shadow: 0 4px 12px rgba(255, 193, 7, 0.15);
         }
-        .global-king-badge {
+
+        /* 徽章樣式 */
+        .badge-float {
             position: absolute; top: 0; right: 0;
-            background: #ffc107; color: #000; font-weight: 800; font-size: 0.75rem;
+            font-weight: 800; font-size: 0.75rem;
             padding: 4px 10px; border-bottom-left-radius: 12px;
             box-shadow: -2px 2px 5px rgba(0,0,0,0.1); z-index: 10;
         }
+        .global-king-badge { background: #ffc107; color: #000; }
+        .pinned-badge { background: #0d6efd; color: #fff; }
 
+        /* 卡片內容佈局 */
         .p-header { padding: 15px; display: flex; gap: 12px; }
         .p-img-box { width: 70px; height: 70px; flex-shrink: 0; background: #f8f9fa; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
         .p-img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -74,10 +101,13 @@
         }
         .price-row:last-child { border-bottom: none; }
         .price-row:active { background-color: #f1f3f5; }
+        
+        /* 📍 模式 B 價格列：加大間距 */
+        .price-row.store-mode-row { padding: 16px 15px; background: #fff; }
 
-        /* 🔥 本款最俗 (Highlight) */
-        .price-row.local-winner { background-color: #f0f7ff; } /* 淡藍底 */
-        .global-king .price-row.local-winner { background-color: #fff9db; } /* 金霸主用淡黃底 */
+        /* 🔥 本款最俗 (Highlight) - 僅在模式 A 顯示 */
+        .price-row.local-winner { background-color: #f0f7ff; } 
+        .global-king .price-row.local-winner { background-color: #fff9db; } 
         
         .local-winner-tag {
             font-size: 0.7rem; font-weight: 800; color: #0d6efd;
@@ -92,7 +122,6 @@
 
         .price-info { text-align: right; }
         .price-val { font-weight: 900; font-size: 1.25rem; color: #dc3545; }
-        .price-unit { font-size: 0.75rem; color: #adb5bd; }
         .promo-badge { font-size: 0.7rem; background: #fff0f0; color: #e03131; padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-weight: 700; }
         
         /* 歷史低價火把 🔥 */
@@ -103,7 +132,7 @@
 
         .chevron { color: #dee2e6; font-size: 0.9rem; margin-left: 10px; }
 
-        /* 大廳樣式維持不變，略... */
+        /* 大廳樣式 (維持不變) */
         .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 15px; }
         .cat-item { text-align: center; }
         .cat-icon { width: 50px; height: 50px; background: #fff; border-radius: 16px; margin: 0 auto 5px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
@@ -151,22 +180,20 @@
         if (!currentKeyword && !currentMode) {
             renderLobby(container);
         } else if (products.length > 0) {
-            generateSmartFilters(products); // 🔥 生成篩選按鈕
+            generateSmartFilters(products); 
             renderProductCards(products, container);
         } else {
-            // 找不到商品 (維持您的可愛機器人)
             renderEmptyState(container);
         }
     };
 
     // ============================================
-    // 🧠 1. 智慧篩選核心 (Smart Filter Logic)
+    // 🧠 1. 智慧篩選核心
     // ============================================
     function generateSmartFilters(data) {
         const bar = document.getElementById('smart-filter-bar');
         if (currentMode === 'store_shelf') return; // 店內模式不顯示複雜篩選
 
-        // 統計出現的規格、材質、與關鍵字
         const specs = new Set();
         const materials = new Set();
         const keywords = new Set();
@@ -181,31 +208,18 @@
             }
         });
 
-        // 只有當選項 > 1 時才顯示按鈕 (如果全是鋁罐，就不用顯示鋁罐按鈕)
         let html = '';
-        
-        // 重置按鈕
         html += `<div class="filter-chip active" id="btn-reset" onclick="resetFilters()">全部</div>`;
 
-        // 規格按鈕 (例: 330ml)
         if (specs.size > 1) {
-            specs.forEach(s => {
-                html += `<div class="filter-chip" onclick="toggleFilter('spec', '${s}', this)">${s}</div>`;
-            });
+            specs.forEach(s => html += `<div class="filter-chip" onclick="toggleFilter('spec', '${s}', this)">${s}</div>`);
         }
-        // 材質按鈕 (例: 玻璃瓶)
         if (materials.size > 1) {
-            materials.forEach(m => {
-                html += `<div class="filter-chip" onclick="toggleFilter('material', '${m}', this)"><i class="bi bi-funnel"></i>${m}</div>`;
-            });
+            materials.forEach(m => html += `<div class="filter-chip" onclick="toggleFilter('material', '${m}', this)"><i class="bi bi-funnel"></i>${m}</div>`);
         }
-        // 關鍵字按鈕 (例: 金牌) - 這裡可以根據您的 keywords 欄位
         if (keywords.size > 0) {
             keywords.forEach(k => {
-                // 排除已經在搜尋框打過的字
-                if (!currentKeyword.includes(k)) {
-                    html += `<div class="filter-chip" onclick="toggleFilter('keyword', '${k}', this)">#${k}</div>`;
-                }
+                if (!currentKeyword.includes(k)) html += `<div class="filter-chip" onclick="toggleFilter('keyword', '${k}', this)">#${k}</div>`;
             });
         }
 
@@ -216,17 +230,12 @@
     }
 
     function toggleFilter(type, val, btn) {
-        // 切換狀態
         if (activeFilters[type] === val) {
-            activeFilters[type] = null; // 取消
+            activeFilters[type] = null;
             btn.classList.remove('active');
         } else {
-            // 同類互斥 (選了330ml就不能選500ml)
             activeFilters[type] = val;
-            // 清除同類別的其他 active
-            // (簡單實作：重繪整個列表比較快)
         }
-        
         updateFilterUI();
         applyFilters();
     }
@@ -238,15 +247,13 @@
     }
 
     function updateFilterUI() {
-        // 重繪按鈕樣式 (簡單暴力法)
         const chips = document.querySelectorAll('.filter-chip');
         chips.forEach(c => {
-            const txt = c.innerText.replace('#', '').replace('filter_alt', '').trim(); // 簡單清理
+            const txt = c.innerText.replace('#', '').replace('filter_alt', '').trim();
             if (txt === '全部') {
                 if (!activeFilters.spec && !activeFilters.material && !activeFilters.keyword) c.classList.add('active');
                 else c.classList.remove('active');
             } else {
-                // 檢查是否選中
                 if (activeFilters.spec === txt || activeFilters.material === txt || activeFilters.keyword === txt) {
                     c.classList.add('active');
                 } else {
@@ -262,7 +269,6 @@
             if (activeFilters.spec && p.spec !== activeFilters.spec) pass = false;
             if (activeFilters.material && p.material !== activeFilters.material) pass = false;
             if (activeFilters.keyword) {
-                // 檢查 keywords 欄位或 name
                 const content = (p.keywords + p.name).toLowerCase();
                 if (!content.includes(activeFilters.keyword.toLowerCase())) pass = false;
             }
@@ -272,7 +278,7 @@
     }
 
     // ============================================
-    // 🎨 2. 卡片渲染核心 (Card Rendering)
+    // 🎨 2. 卡片渲染核心 (完全修復 Mode A / B 邏輯)
     // ============================================
     function renderProductCards(data, container) {
         if (data.length === 0) {
@@ -280,71 +286,109 @@
             return;
         }
 
-        // 1. 找出全場 CP 總霸主 (Global King) - 只找目前列表中的
+        // 找出全場 CP 總霸主 (僅在模式 A 計算)
         let minGlobalScore = 999999;
         let globalKingId = null;
-        data.forEach(p => {
-            if (p.cp_score < minGlobalScore) {
-                minGlobalScore = p.cp_score;
-                globalKingId = p.id;
-            }
-        });
+        if (currentMode !== 'store_shelf') {
+            data.forEach(p => {
+                if (p.cp_score < minGlobalScore) {
+                    minGlobalScore = p.cp_score;
+                    globalKingId = p.id;
+                }
+            });
+        }
 
         let html = '';
-        data.forEach(p => {
-            // 判斷是否為全場霸主
-            const isGlobalKing = (p.id === globalKingId);
-            const cardClass = isGlobalKing ? 'product-card global-king' : 'product-card';
-            const badgeHtml = isGlobalKing ? `<div class="global-king-badge"><i class="bi bi-trophy-fill"></i> CP霸主</div>` : '';
+        
+        // 🔥 邏輯修復：如果是模式 B 且有 Pin ID，把該商品移到最上面
+        let displayData = [...data];
+        if (currentMode === 'store_shelf' && pinId) {
+            const pinnedIndex = displayData.findIndex(p => String(p.id) === String(pinId));
+            if (pinnedIndex > -1) {
+                const pinnedItem = displayData.splice(pinnedIndex, 1)[0];
+                displayData.unshift(pinnedItem);
+            }
+        }
+
+        displayData.forEach(p => {
+            // 判斷特殊身分
+            const isGlobalKing = (currentMode !== 'store_shelf' && p.id === globalKingId);
+            const isPinned = (String(p.id) === String(pinId));
+            
+            // 卡片樣式類別
+            let cardClass = 'product-card';
+            if (currentMode === 'store_shelf') cardClass += ' store-mode'; // 藍色邊條
+            if (isPinned) cardClass += ' pinned-card'; // 置頂發光
+            if (isGlobalKing) cardClass += ' global-king'; // 金框
+
+            // 徽章 HTML
+            let badgeHtml = '';
+            if (isPinned) badgeHtml = `<div class="badge-float pinned-badge"><i class="bi bi-pin-angle-fill"></i> 您選擇的</div>`;
+            else if (isGlobalKing) badgeHtml = `<div class="badge-float global-king-badge"><i class="bi bi-trophy-fill"></i> CP霸主</div>`;
 
             // 準備價格列表
             let priceHtml = '';
+            
             if (p.prices.length > 0) {
-                // 找出該卡片內的最低價 (Local Winner)
-                const minPrice = Math.min(...p.prices.map(pr => pr.price));
+                // 🔥 核心修復：嚴格分流 Mode A 與 Mode B
+                let targetPrices = [];
+                if (currentMode === 'store_shelf') {
+                    // [模式 B]：只顯示「is_target_store=true」的價格
+                    targetPrices = p.prices.filter(pr => pr.is_target_store);
+                } else {
+                    // [模式 A]：顯示所有價格
+                    targetPrices = p.prices;
+                }
 
-                p.prices.forEach(pr => {
-                    const isLocalWinner = (pr.price === minPrice);
-                    const rowClass = isLocalWinner ? 'price-row local-winner' : 'price-row';
-                    
-                    // 標籤邏輯
-                    let tags = '';
-                    if (pr.promo_label) tags += `<span class="promo-badge">${pr.promo_label}</span>`;
-                    if (isLocalWinner) {
-                        if (isGlobalKing) tags += `<span class="local-winner-tag">總霸主</span>`;
-                        else tags += `<span class="local-winner-tag">本款最俗</span>`;
-                    }
+                if (targetPrices.length > 0) {
+                    // 找出該列表內的最低價
+                    const minPrice = Math.min(...targetPrices.map(pr => pr.price));
 
-                    // 歷史低價火把 🔥
-                    let histHtml = '';
-                    if (pr.is_hist_low) {
-                        histHtml = `<div class="hist-low-badge"><i class="bi bi-fire"></i> 歷史低價</div>`;
-                    } else if (pr.time_ago) {
-                        histHtml = `<div class="text-secondary" style="font-size:0.7rem;">${pr.time_ago}更新</div>`;
-                    }
+                    targetPrices.forEach(pr => {
+                        const isLocalWinner = (pr.price === minPrice);
+                        
+                        let rowClass = 'price-row';
+                        if (currentMode === 'store_shelf') rowClass += ' store-mode-row'; // 模式 B 加大間距
+                        else if (isLocalWinner) rowClass += ' local-winner'; // 模式 A 標示贏家
 
-                    // 連結
-                    const linkUrl = `/search?mode=store_shelf&chain_id=${pr.chain_id}&pin_id=${p.id}`;
+                        // 標籤
+                        let tags = '';
+                        if (pr.promo_label) tags += `<span class="promo-badge">${pr.promo_label}</span>`;
+                        
+                        // 歷史低價 / 本款最俗 標示
+                        if (pr.is_hist_low) tags += `<span class="local-winner-tag text-warning"><i class="bi bi-fire"></i> 歷史低價</span>`;
+                        else if (currentMode !== 'store_shelf' && isLocalWinner) {
+                            if (isGlobalKing) tags += `<span class="local-winner-tag">總霸主</span>`;
+                            else tags += `<span class="local-winner-tag">本款最俗</span>`;
+                        }
 
-                    priceHtml += `
-                        <div class="${rowClass}" onclick="goToUrlWithGPS('${linkUrl}')">
-                            <div class="chain-info">
-                                ${pr.chain_logo ? `<img src="${pr.chain_logo}" class="chain-logo">` : ''}
-                                <div class="chain-name">${pr.chain_name}</div>
+                        // 連結：模式 B 不跳轉，模式 A 跳轉
+                        const clickAction = (currentMode === 'store_shelf') ? '' : `onclick="goToUrlWithGPS('/search?mode=store_shelf&chain_id=${pr.chain_id}&pin_id=${p.id}')"`;
+                        const arrowIcon = (currentMode === 'store_shelf') ? '' : '<i class="bi bi-chevron-right chevron"></i>';
+
+                        priceHtml += `
+                            <div class="${rowClass}" ${clickAction}>
+                                <div class="chain-info">
+                                    ${pr.chain_logo ? `<img src="${pr.chain_logo}" class="chain-logo">` : ''}
+                                    <div class="chain-name">${pr.chain_name}</div>
+                                </div>
+                                <div class="price-info">
+                                    <div>${tags} <span class="price-val">$${pr.price}</span></div>
+                                    <div class="text-secondary" style="font-size:0.7rem;">${pr.time_ago || ''}</div>
+                                </div>
+                                ${arrowIcon}
                             </div>
-                            <div class="price-info">
-                                <div>${tags} <span class="price-val">$${pr.price}</span></div>
-                                ${histHtml}
-                            </div>
-                            <i class="bi bi-chevron-right chevron"></i>
-                        </div>
-                    `;
-                });
+                        `;
+                    });
+                } else {
+                     // 模式 B 且該店沒賣 -> 不顯示卡片 (或者顯示無報價)
+                     // 這裡選擇簡單顯示無報價，讓使用者知道這家店缺貨
+                     priceHtml = `<div class="p-3 text-center text-muted" style="font-size:0.85rem;">本店暫無報價</div>`;
+                }
             } else {
                 priceHtml = `<div class="p-3 text-center text-muted" style="font-size:0.85rem;">暫無報價</div>`;
             }
 
-            // 搜尋關鍵字 (點標題再搜一次)
             const searchUrl = `/search?keyword=${encodeURIComponent(p.name)}`;
 
             html += `
@@ -359,7 +403,9 @@
                             <div class="p-meta">
                                 ${p.spec ? `<span class="p-tag">${p.spec}</span>` : ''}
                                 ${p.material ? `<span class="p-tag">${p.material}</span>` : ''}
-                                <span class="ms-auto" style="font-size:0.75rem;">${p.cp_score < 999 ? '$'+p.cp_score.toFixed(2)+'/'+(p.unit||'ml') : ''}</span>
+                                <span class="ms-auto fw-bold text-primary" style="font-size:0.85rem;">
+                                    ${p.cp_score < 999 ? '$'+p.cp_score.toFixed(2)+'/'+(p.unit||'ml') : ''}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -372,7 +418,6 @@
         container.innerHTML = html;
     }
 
-    // 通用與大廳函式維持不變...
     function renderLobby(container) {
         let html = `
             <h6 class="px-2 text-secondary fw-bold mb-3" style="font-size:0.9rem;">熱門通路</h6>
@@ -410,7 +455,6 @@
         if (input && input.value.trim()) goToUrlWithGPS(`/search?keyword=${encodeURIComponent(input.value.trim())}`);
     }
 
-    // 🚀 GPS 跳轉邏輯 (維持不變)
     function goToUrlWithGPS(targetUrl) {
         let separator = targetUrl.includes('?') ? '&' : '?';
         let finalUrl = targetUrl;
