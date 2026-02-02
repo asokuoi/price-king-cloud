@@ -36,11 +36,11 @@ from linebot.models import (
 import config
 
 app = Flask(__name__)
-#app.secret_key = os.environ.get('SECRET_KEY', config.SECRET_KEY)
+app.secret_key = os.environ.get('SECRET_KEY', config.SECRET_KEY)
 #app.secret_key = os.environ.get('SECRET_KEY', 'default-dev-key-12345')
 # 👇 修改成這樣：如果找不到環境變數，就用後面那串亂碼當作 Key
 #app.secret_key = os.environ.get('SECRET_KEY', 'PriceKing_Secret_Key_2026_GoGoGo')
-app.secret_key = 'PriceKing_Super_Secret_Key_2026'
+#app.secret_key = 'PriceKing_Super_Secret_Key_2026'
 # ==========================================
 # 🤖 LINE Bot 設定
 # ==========================================
@@ -53,10 +53,6 @@ handler = WebhookHandler(channel_secret)
 # 🗄️ 資料庫連線 Helper (補在這裡！)
 # ==========================================
 
-# ... (原本的 import) ...
-
-app = Flask(__name__)
-# ... (原本的 secret_key 設定) ...
 
 # 👇👇👇【新增這段：萬能路徑校正器】👇👇👇
 # 這會捕捉所有 "/search/..." 開頭的錯誤請求，強制導回正軌
