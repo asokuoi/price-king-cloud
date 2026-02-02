@@ -231,9 +231,20 @@
         if (u_lat && u_lng) { sessionStorage.setItem('u_lat', u_lat); sessionStorage.setItem('u_lng', u_lng); }
         if (u_uid) sessionStorage.setItem('u_uid', u_uid);
     }
+    // 👇👇👇 V4.1 強力修正版：防止路徑疊加 (404 Fix) 👇👇👇
     function goToUrlWithGPS(targetUrl) {
+        // 1. 強制轉為絕對路徑，防止 /search/search 發生
+        if (!targetUrl.startsWith('http')) {
+            // 確保有斜線開頭
+            if (!targetUrl.startsWith('/')) targetUrl = '/' + targetUrl;
+            // 加上目前的網域 (https://price-king-cloud.onrender.com)
+            targetUrl = window.location.origin + targetUrl;
+        }
+
         let separator = targetUrl.includes('?') ? '&' : '?';
         let finalUrl = targetUrl;
+        
+        // 2. 加上 GPS 與 UserID
         const cachedLat = sessionStorage.getItem('u_lat');
         const cachedLng = sessionStorage.getItem('u_lng');
         const cachedUid = sessionStorage.getItem('u_uid');
@@ -244,6 +255,7 @@
             window.location.href = finalUrl;
             return;
         }
+        
         try {
             if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
                 liff.getProfile().then(profile => {
@@ -254,6 +266,7 @@
             } else executeRedirect(finalUrl);
         } catch (e) { executeRedirect(finalUrl); }
     }
+
     function executeRedirect(baseUrl) {
         if (!navigator.geolocation) { window.location.href = baseUrl; return; }
         navigator.geolocation.getCurrentPosition(
@@ -266,6 +279,7 @@
             { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 } 
         );
     }
+    // 👆👆👆 修正結束 👆👆👆
 
     function generateSmartFilters(data) {
         const bar = document.getElementById('smart-filter-bar');
