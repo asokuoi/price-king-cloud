@@ -39,7 +39,7 @@ app = Flask(__name__)
 #app.secret_key = os.environ.get('SECRET_KEY', config.SECRET_KEY)
 #app.secret_key = os.environ.get('SECRET_KEY', 'default-dev-key-12345')
 # 👇 修改成這樣：如果找不到環境變數，就用後面那串亂碼當作 Key
-app.secret_key = os.environ.get('SECRET_KEY', 'keep-this-secret-and-safe-8888')
+app.secret_key = os.environ.get('SECRET_KEY', 'PriceKing_Secret_Key_2026_GoGoGo')
 # ==========================================
 # 🤖 LINE Bot 設定
 # ==========================================
