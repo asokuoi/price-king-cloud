@@ -99,12 +99,23 @@ def add_header(response):
 
 @app.route('/')
 def index():
+    # 1. 處理 LIFF 登入後的跳轉 (liff.state)
     liff_state = request.args.get('liff.state')
     if liff_state:
+        # 解碼目標路徑
         target_path = unquote(liff_state)
+        # 防止惡意跳轉，只允許站內路徑
         if target_path.startswith('/'):
             return redirect(target_path)
-    return redirect(url_for('consumer_search'))
+    
+    # 2. 如果沒有指定跳轉，預設去搜尋頁
+    # ⚠️ 請確認你的搜尋頁函式名稱！如果是 def search(): 這裡就要寫 'search'
+    # ⚠️ 如果是 def consumer_search(): 這裡就寫 'consumer_search'
+    try:
+        return redirect(url_for('search')) 
+    except:
+        # 萬一名字打錯，直接硬導向網址 '/search' (保命符)
+        return redirect('/search')
 
 @app.route('/admin')
 def admin_root(): return redirect(url_for('admin_login'))
