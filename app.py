@@ -618,6 +618,8 @@ def admin_login():
         flash('❌ 登入失敗')
     return render_template('admin/login.html')
 
+def is_admin_logged_in():
+    return session.get('admin_logged_in', False)
 @app.route('/admin/dashboard')
 def admin_dashboard():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))

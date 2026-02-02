@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>價格王 Price King</title>
+    <title>價格王 Price King V4.2</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -47,7 +47,7 @@
         .filter-chip.active { background: #212529; color: white; border-color: #212529; box-shadow: 0 3px 6px rgba(0,0,0,0.15); }
 
         /* =========================================
-           💎 卡片設計 V4.0 (Ghost Placeholder 版)
+           💎 卡片設計 V4.2 (包含隱形佔位符與對齊)
            ========================================= */
         .product-card { 
             background: #fff; border-radius: 12px; margin-bottom: 14px; 
@@ -102,10 +102,10 @@
         .chain-logo { width: 28px; height: 28px; border-radius: 6px; object-fit: contain; border: 1px solid #f0f0f0; background: #fff; flex-shrink: 0;}
         .chain-name { font-weight: 700; font-size: 0.95rem; color: #343a40; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        /* ➡️ V4.0 箭頭強化：flex-shrink: 0 確保它永遠有空間 */
+        /* ➡️ 通路箭頭 */
         .chain-arrow-icon { 
             color: #0d6efd; font-size: 0.8rem; margin-top: 2px; margin-left: 4px; 
-            flex-shrink: 0; min-width: 16px; /* 增加最小寬度 */
+            flex-shrink: 0; min-width: 16px; 
         }
 
         /* 價格右側區塊 */
@@ -136,7 +136,7 @@
             margin-bottom: 3px; 
         }
 
-        /* 👻 V4.0 隱形佔位符 (Logic B 專用) */
+        /* 👻 隱形佔位符 (Ghost Placeholder) */
         .price-origin.placeholder {
             visibility: hidden; /* 看不見，但佔空間 */
             width: 32px; /* 預留一個大概的寬度 */
@@ -201,6 +201,8 @@
     const currentMode = "{{ search_mode }}";
     const pinId = "{{ pin_id }}";
     const targetChainInfo = {{ target_chain_info | safe if target_chain_info else '{}' }};
+    // 傳入正確的 LIFF ID (這會由 app.py 傳入)
+    const myLiffId = "{{ liff_id }}"; 
 
     let activeFilters = { spec: null, material: null, keyword: null };
 
@@ -231,20 +233,28 @@
         if (u_lat && u_lng) { sessionStorage.setItem('u_lat', u_lat); sessionStorage.setItem('u_lng', u_lng); }
         if (u_uid) sessionStorage.setItem('u_uid', u_uid);
     }
-    // 👇👇👇 V4.1 強力修正版：防止路徑疊加 (404 Fix) 👇👇👇
+
+    // 🔥🔥🔥 V4.2 絕對路徑修正版 (防止 404) 🔥🔥🔥
     function goToUrlWithGPS(targetUrl) {
-        // 1. 強制轉為絕對路徑，防止 /search/search 發生
+        // 1. 強制修正：如果你傳進來的網址不小心變成相對路徑，這裡強制補上 /
+        if (!targetUrl.startsWith('/') && !targetUrl.startsWith('http')) {
+            targetUrl = '/' + targetUrl;
+        }
+
+        // 2. 絕對防禦：如果網址變成了 /search/search，強制取代回 /search
+        if (targetUrl.includes('/search/search')) {
+            targetUrl = targetUrl.replace('/search/search', '/search');
+        }
+
+        // 3. 轉為絕對路徑 (加上 https://...)
+        // 這是解決 404 的核心：不要讓瀏覽器去猜，直接給它完整的門牌號碼
         if (!targetUrl.startsWith('http')) {
-            // 確保有斜線開頭
-            if (!targetUrl.startsWith('/')) targetUrl = '/' + targetUrl;
-            // 加上目前的網域 (https://price-king-cloud.onrender.com)
-            targetUrl = window.location.origin + targetUrl;
+             targetUrl = window.location.origin + targetUrl;
         }
 
         let separator = targetUrl.includes('?') ? '&' : '?';
         let finalUrl = targetUrl;
         
-        // 2. 加上 GPS 與 UserID
         const cachedLat = sessionStorage.getItem('u_lat');
         const cachedLng = sessionStorage.getItem('u_lng');
         const cachedUid = sessionStorage.getItem('u_uid');
@@ -279,7 +289,6 @@
             { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 } 
         );
     }
-    // 👆👆👆 修正結束 👆👆👆
 
     function generateSmartFilters(data) {
         const bar = document.getElementById('smart-filter-bar');
@@ -373,12 +382,11 @@
             if (currentMode === 'store_shelf') {
                 const targetPrice = p.prices.find(pr => pr.is_target_store);
                 if (targetPrice) {
-                    // 🔥 V4.0 關鍵邏輯：如果是店內模式，且沒有原價，我們就生成一個「隱形的」原價佔位符
+                    // 👻 店內模式的隱形佔位符邏輯
                     let originHtml;
                     if (targetPrice.base_price > targetPrice.price) {
                         originHtml = `<span class="price-origin">$${targetPrice.base_price}</span>`;
                     } else {
-                        // 這裡生成隱形佔位，寬度大約是 $00 的寬度，確保把現價往右推
                         originHtml = `<span class="price-origin placeholder">$00</span>`;
                     }
 
@@ -476,7 +484,7 @@
         const input = document.getElementById('searchInput');
         if (input && input.value.trim()) goToUrlWithGPS(`/search?keyword=${encodeURIComponent(input.value.trim())}`);
     }
-    window.addEventListener('load', function() { if (typeof liff !== 'undefined') liff.init({ liffId: "{{ liff_id }}" }); });
+    window.addEventListener('load', function() { if (typeof liff !== 'undefined') liff.init({ liffId: myLiffId }); });
 </script>
 </body>
 </html>
