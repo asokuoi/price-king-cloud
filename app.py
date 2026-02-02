@@ -1226,6 +1226,15 @@ def admin_dead_stock():
     try: cur.execute("SELECT p.id, p.name, p.category, MAX(pr.update_time) as last_update FROM products p LEFT JOIN prices pr ON p.id = pr.product_id GROUP BY p.id HAVING last_update < CURRENT_DATE - interval '30 days' OR last_update IS NULL ORDER BY last_update ASC"); products = [dict(r) for r in cur.fetchall()]
     except: products = []
     conn.close(); return render_template('admin/analysis.html', products=products, title="滯銷分析")
+# 👇👇👇【新增這段：強制禁止瀏覽器快取】👇👇👇
+@app.after_request
+def add_header(response):
+    # 告訴瀏覽器：不要存快取！每次都給我重新下載！
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+# 👆👆👆【新增結束】👆👆👆
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

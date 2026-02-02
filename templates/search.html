@@ -234,21 +234,19 @@
         if (u_uid) sessionStorage.setItem('u_uid', u_uid);
     }
 
-    // 🔥🔥🔥 V4.2 絕對路徑修正版 (防止 404) 🔥🔥🔥
+    // 🔥 V4.2 絕對防禦版 JS
     function goToUrlWithGPS(targetUrl) {
-        // 1. 強制修正：如果你傳進來的網址不小心變成相對路徑，這裡強制補上 /
-        if (!targetUrl.startsWith('/') && !targetUrl.startsWith('http')) {
-            targetUrl = '/' + targetUrl;
-        }
-
-        // 2. 絕對防禦：如果網址變成了 /search/search，強制取代回 /search
-        if (targetUrl.includes('/search/search')) {
-            targetUrl = targetUrl.replace('/search/search', '/search');
-        }
-
-        // 3. 轉為絕對路徑 (加上 https://...)
-        // 這是解決 404 的核心：不要讓瀏覽器去猜，直接給它完整的門牌號碼
+        
+        // 1. 【關鍵修正】絕對路徑鎖定
+        // 不管傳進來什麼，只要不是 http 開頭，一律加上 https://你的網址
         if (!targetUrl.startsWith('http')) {
+             // 確保有斜線
+             if (!targetUrl.startsWith('/')) targetUrl = '/' + targetUrl;
+             
+             // 如果發現路徑重複 (/search/search)，直接砍掉一個
+             targetUrl = targetUrl.replace('/search/search', '/search');
+             
+             // 加上網域
              targetUrl = window.location.origin + targetUrl;
         }
 
@@ -262,10 +260,12 @@
         if (cachedLat && cachedLng) {
             finalUrl += `${separator}lat=${cachedLat}&lng=${cachedLng}`;
             if (cachedUid) finalUrl += `&line_id=${cachedUid}`;
+            // 這裡用 window.location.replace 比較不會留上一頁的歷史紀錄，體驗更好
             window.location.href = finalUrl;
             return;
         }
         
+        // ... (後面保持不變) ...
         try {
             if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
                 liff.getProfile().then(profile => {
@@ -276,6 +276,7 @@
             } else executeRedirect(finalUrl);
         } catch (e) { executeRedirect(finalUrl); }
     }
+    
 
     function executeRedirect(baseUrl) {
         if (!navigator.geolocation) { window.location.href = baseUrl; return; }
