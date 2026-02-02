@@ -362,9 +362,9 @@ def api_price_update():
         return jsonify({'status':'error', 'msg':str(e)}), 500
     finally: conn.close()
 
-# ----------------------------------------------------
-# 🛒 消費者搜尋 (V89.2: 恢復 GPS 與 ID 紀錄)
-# ----------------------------------------------------
+# ==========================================
+# 🛒 消費者搜尋 V2.0 (智慧篩選 + 歷史低價)
+# ==========================================
 @app.route('/search')
 def consumer_search():
     keyword = request.args.get('keyword', '').strip()
@@ -373,7 +373,7 @@ def consumer_search():
     target_category = request.args.get('category')
     pin_product_id = request.args.get('pin_id')
     
-    # 🆕 新增：接收經緯度與 User ID
+    # 📍 V89.7: 接收定位與身分
     lat = request.args.get('lat', '')
     lng = request.args.get('lng', '')
     user_line_id = request.args.get('line_id', '')
@@ -381,28 +381,18 @@ def consumer_search():
     conn = get_db(); cur = conn.cursor()
     products_list = []
     
-    # 流量清洗與紀錄 (V89.2: 完整記錄人事時地物)
+    # 1. 流量清洗與紀錄 (寫入台灣時間)
     if keyword and len(keyword) > 0:
         try: 
-            # ✅ FIX: 寫入 keyword, lat, lng, line_id
-            # 注意：這裡假設資料庫已有 lat, lng 欄位 (您剛確認過有了)
+            # 這裡維持您的 "Store Taiwan Time" 策略
             cur.execute("""
                 INSERT INTO search_logs (keyword, line_id, lat, lng, log_time) 
                 VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP + interval '8 hours')
             """, (keyword, user_line_id, lat, lng))
             conn.commit()
-        except Exception as e: 
-            print(f"Log Error: {e}") # 偷印錯誤避免當機
+        except Exception as e: print(f"Log Error: {e}")
 
-    # 1. 智慧分類鎖定
-    if pin_product_id and not target_category:
-        try:
-            cur.execute("SELECT category FROM products WHERE id = %s", (pin_product_id,))
-            res = cur.fetchone()
-            if res: target_category = dict(res)['category']
-        except: pass
-
-    # 2. 大廳資料
+    # 2. 準備大廳資料 (如果沒搜尋時顯示)
     lobby_data = {'categories': [], 'chains': []}
     if not keyword and not mode:
         try:
@@ -414,7 +404,8 @@ def consumer_search():
         conn.close()
         return render_template('search.html', products_data="[]", lobby_data=lobby_data, search_keyword="", search_mode="", liff_id=config.LIFF_ID, pin_id="")
 
-    # 3. 撈產品
+    # 3. 撈產品基礎資料
+    # 🔥 重點：把 keywords 也撈出來，前端做篩選按鈕要用
     cols = "id, name, spec, material, category, keywords, priority, image_url, capacity, unit"
     if mode == 'store_shelf' and target_chain_id:
         if target_category: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 AND category = %s ORDER BY priority DESC, id", (target_category,))
@@ -423,19 +414,37 @@ def consumer_search():
         cur.execute(f"SELECT {cols} FROM products WHERE status = 1 ORDER BY priority DESC, category, id")
     products_rows = cur.fetchall()
     
-    # 4. 撈價格
+    # 4. 🔥 新增：撈取「過去30天歷史低價」
+    # 我們算出每個商品在過去 30 天內的最低價，用來標示 "歷史低價"
+    history_low_map = {}
+    try:
+        # 這裡用 CURRENT_TIMESTAMP 因為 price_logs 已經校正為 UTC (或我們定義的基準)
+        # 這裡抓取每個商品過去30天的最低成交價
+        h_sql = """
+            SELECT product_id, MIN(new_price) as min_price 
+            FROM price_logs 
+            WHERE log_time >= CURRENT_TIMESTAMP - interval '30 days'
+            AND status = 1 
+            GROUP BY product_id
+        """
+        cur.execute(h_sql)
+        for r in cur.fetchall():
+            history_low_map[r['product_id']] = float(r['min_price'])
+    except: pass
+
+    # 5. 撈目前架上價格
     sql_prices = """
         SELECT p.product_id, p.price, p.base_price, p.promo_label, p.update_time, 
                c.name as chain_name, c.id as chain_id, c.logo_url as chain_logo 
         FROM prices p 
         LEFT JOIN chains c ON p.chain_id = c.id 
         LEFT JOIN products prod ON p.product_id = prod.id 
-        WHERE c.status = 1 AND prod.status = 1
+        WHERE c.status = 1 AND prod.status = 1 AND p.price > 0
     """
     cur.execute(sql_prices + " ORDER BY p.price ASC")
     prices_rows = cur.fetchall()
     
-    # 5. 資料組裝
+    # 6. 資料組裝
     products_map = {p['id']: dict(p) for p in products_rows}
     for pid in products_map:
         products_map[pid].update({'prices': [], 'cp_score': 999999.0, 'local_score': 999999.0, 'selling_at': []})
@@ -448,13 +457,16 @@ def consumer_search():
             price = float(d['price'])
             cap = to_float(p.get('capacity'), 0)
             
+            # CP值計算
             score = (price / cap) if cap > 0 and price > 0 else price
             if score < p['cp_score']: p['cp_score'] = score
             
+            # 店內模式分數
             is_target_store = (str(d['chain_id']) == str(target_chain_id)) if target_chain_id else False
             if is_target_store:
                 if score < p['local_score']: p['local_score'] = score
 
+            # 顯示格式化
             unit = p.get('unit', '')
             cp_str = ""
             if cap > 0 and price > 0:
@@ -463,15 +475,31 @@ def consumer_search():
                 suffix = f"100{unit}" if unit in high_vol else unit
                 cp_str = f"(${round(val, 1)}/{suffix})"
             
+            # 時間顯示 (配合全台灣時間資料庫，直接與現在的台灣時間比對)
             time_str = ""
             if d['update_time']:
                 try:
-                    dt = datetime.strptime(str(d['update_time']).split('.')[0], "%Y-%m-%d %H:%M:%S")
-                    diff = datetime.now() - dt
-                    if diff.days == 0: time_str = "剛剛" if diff.seconds < 3600 else f"{diff.seconds // 3600}小時前"
+                    # 假設 DB 存的是台灣時間，我們這邊用台灣時間來比
+                    now_tw = datetime.utcnow() + timedelta(hours=8)
+                    # 如果 DB 存的是 UTC，這裡要調整。假設您已執行 SQL 改為台灣時間：
+                    db_time = d['update_time']
+                    if isinstance(db_time, str):
+                        db_time = datetime.strptime(db_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                    
+                    diff = now_tw - db_time
+                    # 簡單防呆：如果差異是負的 (代表 DB 時間比現在還未來)，就當作 "剛剛"
+                    if diff.total_seconds() < 0: diff = timedelta(seconds=0)
+
+                    if diff.days == 0: 
+                        time_str = "剛剛" if diff.seconds < 3600 else f"{diff.seconds // 3600}小時前"
                     elif diff.days == 1: time_str = "昨天"
-                    else: time_str = dt.strftime("%m/%d")
+                    else: time_str = db_time.strftime("%m/%d")
                 except: pass
+
+            # 🔥 判斷歷史低價
+            # 如果目前價格 <= 過去30天最低價，給予 True
+            hist_min = history_low_map.get(pid, 999999)
+            is_hist_low = (price <= hist_min) and (price > 0)
 
             p['prices'].append({
                 'chain_id': d['chain_id'],
@@ -482,16 +510,30 @@ def consumer_search():
                 'promo_label': d.get('promo_label', ''),
                 'cp_val': cp_str,
                 'time_ago': time_str,
-                'is_target_store': is_target_store
+                'is_target_store': is_target_store,
+                'is_hist_low': is_hist_low  # 傳給前端畫火把 🔥
             })
             p['selling_at'].append(d['chain_name'])
 
-    # 6. 排序與過濾
+    # 7. 排序與關鍵字過濾
     raw_list = list(products_map.values())
+    
+    # 搜尋邏輯：名稱、材質、分類、關鍵字、通路名 都要搜
     if keyword:
         kws = keyword.lower().split()
-        raw_list = [p for p in raw_list if all(k in (p['name'] + str(p['material']) + str(p['category']) + str(p.get('keywords','')) + ' '.join(p['selling_at'])).lower() for k in kws)]
+        filtered_list = []
+        for p in raw_list:
+            # 組合所有可搜尋的文字
+            search_text = (
+                f"{p['name']} {p['material'] or ''} {p['category']} "
+                f"{p.get('keywords') or ''} {' '.join(p['selling_at'])}"
+            ).lower()
+            if all(k in search_text for k in kws):
+                filtered_list.append(p)
+        raw_list = filtered_list
     
+    # 預設排序：先顯示「有報價」的，再依 CP 值排序
+    # (您提到的"相關度"通常需要更複雜的演算法，目前先用有無關鍵字命中+CP值做基礎)
     def get_sort_key(p):
         is_pinned = (str(p['id']) == str(pin_product_id)) if pin_product_id else False
         return (0 if is_pinned else 1, p['cp_score'])
@@ -507,8 +549,10 @@ def consumer_search():
             x['local_score']
         ))
     else:
+        # 一般模式：只顯示有價格的商品
         products_list = sorted([p for p in raw_list if len(p['prices']) > 0], key=get_sort_key)
     
+    # 價格內排序：便宜的在上面
     for p in products_list:
         p['prices'].sort(key=lambda x: x['price'])
 
