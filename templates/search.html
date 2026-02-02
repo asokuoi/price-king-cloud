@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>價格王 Price King V4.3</title>
+    
+    <base href="/">
+    
+    <title>價格王 Price King V4.5</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -234,7 +237,7 @@
         if (u_uid) sessionStorage.setItem('u_uid', u_uid);
     }
 
-    // 🔥🔥🔥 V4.3 絕對路徑防禦版 (解決 404 問題) 🔥🔥🔥
+    // 🔥🔥🔥 V4.5 絕對路徑防禦版 (解決 404 問題) 🔥🔥🔥
     function goToUrlWithGPS(targetUrl) {
         
         // 1. 強制鎖定絕對路徑：防止 /search/search
@@ -486,3 +489,4 @@
 </script>
 </body>
 </html>
+```([https://site.com/folder1/](https://site.com/folder1/))" resolving to "[site.com/folder1/page2.html](https://site.com/folder1/page2.html)"; on the right, the same setup but with <base href="/"> in the head, resolving the link to "[site.com/page2.html](https://site.com/page2.html)"]
