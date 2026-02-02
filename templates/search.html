@@ -10,13 +10,26 @@
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     
     <style>
-        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8f9fa; padding-bottom: 80px; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f4f7f6; padding-bottom: 80px; }
         
-        /* 搜尋 Header */
+        /* Header */
         .search-header { background: #fff; position: sticky; top: 0; z-index: 1050; padding: 12px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
         .search-input { border-radius: 50px; background: #f1f3f5; border: none; height: 42px; font-weight: 500; padding-left: 45px; }
         
-        /* 智慧篩選 Bar */
+        /* Store Identity Bar */
+        .store-identity-bar {
+            background-color: #d1e7dd;
+            color: #0f5132;
+            padding: 8px 15px;
+            font-size: 0.9rem; font-weight: 700;
+            display: flex; align-items: center; gap: 8px;
+            position: sticky; top: 66px; z-index: 1045;
+            border-bottom: 1px solid #badbcc;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .store-logo-sm { width: 24px; height: 24px; border-radius: 4px; object-fit: contain; background: #fff; border: 1px solid #fff; }
+
+        /* Filter Bar */
         .smart-filter-bar { 
             white-space: nowrap; overflow-x: auto; padding: 10px 15px; 
             background: #fff; border-bottom: 1px solid #eee; 
@@ -24,115 +37,145 @@
             display: flex; gap: 8px; scrollbar-width: none;
         }
         .smart-filter-bar::-webkit-scrollbar { display: none; }
-        
         .filter-chip { 
             display: inline-flex; align-items: center; justify-content: center;
-            padding: 8px 16px; border-radius: 20px; 
+            padding: 6px 16px; border-radius: 20px; 
             background: #fff; color: #495057; border: 1px solid #e9ecef;
             font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
-            flex-shrink: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.02);
         }
-        .filter-chip.active { 
-            background: #212529; color: white; border-color: #212529; 
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-        }
+        .filter-chip.active { background: #212529; color: white; border-color: #212529; box-shadow: 0 3px 6px rgba(0,0,0,0.15); }
 
         /* =========================================
-           商品卡片 V3.1
+           💎 卡片設計 V4.0 (Ghost Placeholder 版)
            ========================================= */
         .product-card { 
-            background: #fff; border-radius: 16px; margin-bottom: 16px; 
-            /* 🔥 粉色邊框 (預設) */
-            border: 2px solid #ffecf0; 
-            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            background: #fff; border-radius: 12px; margin-bottom: 14px; 
+            border: 2.5px solid #ffb3c1; /* 統一粉色 */
+            box-shadow: 0 4px 8px rgba(0,0,0,0.03);
             overflow: hidden; position: relative;
         }
         
-        /* 👑 CP 霸主 (金框 override) */
-        .product-card.global-king { border: 2px solid #ffc107; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.15); }
-        
-        /* 📍 店內模式 (藍邊 override) */
-        .product-card.store-mode { border: 2px solid #dee2e6; border-left: 6px solid #0d6efd; }
-        
-        /* 📌 您選擇的 (置頂發光) */
-        .product-card.pinned-card { 
-            border: 2px solid #0d6efd; background: #f8fbff; 
-            box-shadow: 0 0 20px rgba(13, 110, 253, 0.15); 
+        .product-card.global-king { border: 2.5px solid #ffc107; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.15); }
+        .product-card.pinned-card { border: 2.5px solid #0d6efd; background: #f8fbff; }
+        .product-card.diamond-king {
+            border: 3px solid transparent;
+            background: linear-gradient(#f8fbff, #f8fbff) padding-box,
+                        linear-gradient(135deg, #0dcaf0 0%, #0d6efd 50%, #6f42c1 100%) border-box;
+            box-shadow: 0 0 20px rgba(13, 202, 240, 0.3);
         }
 
         /* 徽章 */
         .badge-float {
             position: absolute; top: 0; right: 0; font-weight: 800; font-size: 0.75rem;
-            padding: 5px 12px; border-bottom-left-radius: 12px; z-index: 10;
+            padding: 4px 12px; border-bottom-left-radius: 12px; z-index: 10;
         }
         .global-king-badge { background: #ffc107; color: #000; }
         .pinned-badge { background: #0d6efd; color: #fff; }
+        .store-king-badge { background: #ffc107; color: #000; } 
+        .diamond-badge { background: linear-gradient(135deg, #0dcaf0, #0d6efd); color: #fff; box-shadow: 0 2px 5px rgba(13, 110, 253, 0.3); }
 
         /* 內容區 */
-        .p-header { padding: 18px 15px 12px 15px; }
+        .p-header { padding: 16px 16px 10px 16px; }
         .p-top-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
-        .p-name { font-weight: 800; font-size: 1.2rem; color: #212529; line-height: 1.3; }
-        .p-category { font-size: 0.75rem; color: #adb5bd; border: 1px solid #f0f0f0; padding: 2px 8px; border-radius: 6px; height: fit-content; margin-left: 10px; white-space: nowrap; }
-
-        .p-meta { font-size: 0.85rem; display: flex; gap: 6px; align-items: center; }
-        .p-tag { background: #f8f9fa; padding: 4px 10px; border-radius: 6px; font-weight: 600; color: #6c757d; font-size: 0.8rem; }
-        .p-cp { color: #0d6efd; font-weight: 700; font-size: 0.9rem; margin-left: auto; }
-
-        /* 價格列表 */
-        .price-list { border-top: 1px solid #f1f3f5; }
+        .p-name { font-weight: 800; font-size: 1.15rem; color: #212529; line-height: 1.3; }
         
+        .p-meta { font-size: 0.85rem; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+        .p-tag { background: #f1f3f5; padding: 3px 8px; border-radius: 6px; font-weight: 500; color: #6c757d; font-size: 0.8rem; }
+        .p-category { border: 1px solid #dee2e6; color: #adb5bd; background: #fff; }
+        .p-cp { color: #198754; font-weight: 700; font-size: 0.95rem; margin-left: auto; }
+
+        /* 價格列表 (列表模式 - 右對齊) */
+        .price-list { border-top: 1px solid #f8f9fa; }
         .price-row { 
-            padding: 14px 15px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #f8f9fa; cursor: pointer;
-            transition: background 0.1s;
+            padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #f8f9fa; cursor: pointer; position: relative;
         }
         .price-row:last-child { border-bottom: none; }
-        .price-row:active { background-color: #f8f9fa; }
         
-        /* 贏家高亮 */
-        .price-row.local-winner { background-color: #f8fbff; } 
-        .global-king .price-row.local-winner { background-color: #fffbf0; }
+        .price-row.local-winner { background-color: #f8fbff; }
+        .global-king .price-row.local-winner { background-color: #fffdf5; }
+        .diamond-king .price-row.local-winner { background-color: #eefcff; }
 
-        .chain-info { display: flex; align-items: center; gap: 12px; }
-        .chain-logo { width: 32px; height: 32px; border-radius: 8px; object-fit: contain; border: 1px solid #f0f0f0; background: #fff; }
-        .chain-name { font-weight: 700; font-size: 1rem; color: #343a40; }
+        /* 通路資訊 + 箭頭 */
+        .chain-info { display: flex; align-items: center; gap: 8px; flex-grow: 1; min-width: 0; }
+        .chain-logo { width: 28px; height: 28px; border-radius: 6px; object-fit: contain; border: 1px solid #f0f0f0; background: #fff; flex-shrink: 0;}
+        .chain-name { font-weight: 700; font-size: 0.95rem; color: #343a40; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .price-right { text-align: right; }
-        .price-current { font-weight: 900; font-size: 1.25rem; color: #dc3545; line-height: 1; }
-        .price-origin { text-decoration: line-through; color: #adb5bd; font-size: 0.8rem; margin-left: 4px; font-weight: 400; }
+        /* ➡️ V4.0 箭頭強化：flex-shrink: 0 確保它永遠有空間 */
+        .chain-arrow-icon { 
+            color: #0d6efd; font-size: 0.8rem; margin-top: 2px; margin-left: 4px; 
+            flex-shrink: 0; min-width: 16px; /* 增加最小寬度 */
+        }
+
+        /* 價格右側區塊 */
+        .price-right { 
+            text-align: right; display: flex; flex-direction: column; 
+            align-items: flex-end; justify-content: center; min-width: 80px; 
+        }
         
-        /* 🔥 促銷標籤 (淡黃底) */
+        .promo-row { 
+            min-height: 18px; margin-bottom: 2px; 
+            display: flex; justify-content: flex-end; width: 100%;
+        }
         .promo-badge { 
-            font-size: 0.75rem; background: #fff8c4; color: #b08d00; 
-            padding: 2px 8px; border-radius: 4px; font-weight: 700; margin-bottom: 4px; display: inline-block;
+            font-size: 0.7rem; background: #fff8c4; color: #b08d00; 
+            padding: 2px 6px; border-radius: 4px; font-weight: 700; 
+            display: inline-block;
         }
 
-        /* 🔵 前往按鈕 (增強點擊感) */
-        .btn-go {
-            width: 28px; height: 28px; border-radius: 50%; background: #f1f3f5; 
-            color: #0d6efd; display: flex; align-items: center; justify-content: center;
-            font-size: 0.9rem; margin-left: 10px; transition: all 0.2s;
+        .price-val-row { 
+            display: flex; align-items: flex-end; justify-content: flex-end;
+            gap: 6px; height: 24px; 
         }
-        .price-row:active .btn-go { background: #0d6efd; color: white; }
+        .price-current { font-weight: 800; font-size: 1.3rem; color: #212529; line-height: 1; }
+        .price-current.is-cheapest { color: #dc3545; }
+        .price-origin { 
+            text-decoration: line-through; color: #adb5bd; 
+            font-size: 0.8rem; font-weight: 400; 
+            margin-bottom: 3px; 
+        }
 
-        /* 店內模式大價格 */
+        /* 👻 V4.0 隱形佔位符 (Logic B 專用) */
+        .price-origin.placeholder {
+            visibility: hidden; /* 看不見，但佔空間 */
+            width: 32px; /* 預留一個大概的寬度 */
+            display: inline-block;
+        }
+        
+        /* 邏輯圈 B: 店內模式大價格區 */
         .store-price-box { 
-            padding: 16px; display: flex; align-items: center; justify-content: space-between; background: #fff; 
+            padding: 18px 16px; display: flex; align-items: center; 
+            justify-content: space-between; background: #fff; 
         }
-        .store-action-link { color: #0d6efd; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 4px; }
+        .store-price-left { display: flex; flex-direction: column; }
+        
+        .store-promo-row { 
+            min-height: 18px; margin-bottom: 2px; 
+            display: flex; justify-content: flex-start; 
+        }
+        .store-price-val-row { 
+            display: flex; align-items: flex-end; justify-content: flex-start; 
+            gap: 6px; height: 24px;
+        }
 
-        /* 大廳樣式 */
+        .store-action-link { 
+            color: #0d6efd; font-weight: 700; font-size: 0.9rem; 
+            display: flex; align-items: center; gap: 4px; 
+        }
+
+        /* 大廳 */
         .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 15px; }
-        .cat-item { text-align: center; }
-        .cat-icon { width: 54px; height: 54px; background: #fff; border-radius: 18px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; box-shadow: 0 4px 10px rgba(0,0,0,0.04); color: #495057; }
-        .cat-text { font-size: 0.85rem; color: #6c757d; font-weight: 500; }
+        .cat-item { text-align: center; position: relative;}
+        .cat-icon { width: 50px; height: 50px; background: #fff; border-radius: 16px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 6px rgba(0,0,0,0.03); color: #495057; }
+        .cat-text { font-size: 0.8rem; color: #6c757d; font-weight: 500; }
     </style>
 </head>
 <body>
 
 <div class="search-header">
     <div class="d-flex gap-2 align-items-center">
-        <a href="/search" class="btn btn-light border rounded-circle" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <a href="/search" class="btn btn-light border rounded-circle shadow-sm" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             <i class="bi bi-house-door-fill text-secondary"></i>
         </a>
         <div class="position-relative flex-grow-1">
@@ -140,14 +183,15 @@
             <input type="text" id="searchInput" class="form-control search-input" 
                    placeholder="找啤酒 (例: 金牌)" value="{{ search_keyword }}" onkeypress="handleEnter(event)">
         </div>
-        <button type="button" class="btn btn-dark rounded-circle" style="width:42px;height:42px;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="performSearch()">
+        <button type="button" class="btn btn-dark rounded-circle shadow-sm" style="width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0;" onclick="performSearch()">
             <i class="bi bi-arrow-right"></i>
         </button>
     </div>
 </div>
 
-<div id="smart-filter-bar" class="smart-filter-bar d-none"></div>
+<div id="store-identity-bar" class="store-identity-bar d-none"></div>
 
+<div id="smart-filter-bar" class="smart-filter-bar d-none"></div>
 <div id="main-content" class="container pt-3"></div>
 
 <script>
@@ -156,25 +200,27 @@
     const currentKeyword = "{{ search_keyword }}";
     const currentMode = "{{ search_mode }}";
     const pinId = "{{ pin_id }}";
+    const targetChainInfo = {{ target_chain_info | safe if target_chain_info else '{}' }};
 
     let activeFilters = { spec: null, material: null, keyword: null };
 
-    // ==========================================
-    // ⚡ GPS 極速緩存邏輯 (Session Cache)
-    // ==========================================
-    // 進頁面時，檢查網址有沒有 GPS，有就存起來；沒有就看暫存有沒有；再沒有才去抓
     window.onload = function() {
-        initGPS(); // 優先處理 GPS
+        initGPS();
+        
+        if (currentMode === 'store_shelf' && targetChainInfo.id) {
+            const storeBar = document.getElementById('store-identity-bar');
+            storeBar.classList.remove('d-none');
+            storeBar.innerHTML = `
+                ${targetChainInfo.logo_url ? `<img src="${targetChainInfo.logo_url}" class="store-logo-sm">` : '<i class="bi bi-shop"></i>'}
+                <span>${targetChainInfo.name}</span>
+            `;
+            document.getElementById('smart-filter-bar').style.top = '108px';
+        }
 
         const container = document.getElementById('main-content');
-        if (!currentKeyword && !currentMode) {
-            renderLobby(container);
-        } else if (products.length > 0) {
-            generateSmartFilters(products); 
-            renderProductCards(products, container);
-        } else {
-            renderEmptyState(container);
-        }
+        if (!currentKeyword && !currentMode) renderLobby(container);
+        else if (products.length > 0) { generateSmartFilters(products); renderProductCards(products, container); }
+        else renderEmptyState(container);
     };
 
     function initGPS() {
@@ -182,51 +228,36 @@
         const u_lat = urlParams.get('lat');
         const u_lng = urlParams.get('lng');
         const u_uid = urlParams.get('line_id');
-
-        // 1. 如果網址帶有 GPS，強制更新 Cache
-        if (u_lat && u_lng) {
-            sessionStorage.setItem('u_lat', u_lat);
-            sessionStorage.setItem('u_lng', u_lng);
-        }
-        if (u_uid) {
-            sessionStorage.setItem('u_uid', u_uid);
-        }
+        if (u_lat && u_lng) { sessionStorage.setItem('u_lat', u_lat); sessionStorage.setItem('u_lng', u_lng); }
+        if (u_uid) sessionStorage.setItem('u_uid', u_uid);
     }
-
-    // 🔥 這是您要的「不卡頓」跳轉：優先讀暫存，0秒反應
     function goToUrlWithGPS(targetUrl) {
         let separator = targetUrl.includes('?') ? '&' : '?';
         let finalUrl = targetUrl;
-        
         const cachedLat = sessionStorage.getItem('u_lat');
         const cachedLng = sessionStorage.getItem('u_lng');
         const cachedUid = sessionStorage.getItem('u_uid');
 
-        // A. 有暫存 -> 直接飛
         if (cachedLat && cachedLng) {
             finalUrl += `${separator}lat=${cachedLat}&lng=${cachedLng}`;
             if (cachedUid) finalUrl += `&line_id=${cachedUid}`;
             window.location.href = finalUrl;
             return;
         }
-
-        // B. 沒暫存 -> 乖乖抓一次 (只會發生在第一次)
         try {
             if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
                 liff.getProfile().then(profile => {
-                    sessionStorage.setItem('u_uid', profile.userId); // 存起來
+                    sessionStorage.setItem('u_uid', profile.userId);
                     finalUrl += `${separator}line_id=${profile.userId}`;
                     executeRedirect(finalUrl); 
                 }).catch(() => executeRedirect(finalUrl));
             } else executeRedirect(finalUrl);
         } catch (e) { executeRedirect(finalUrl); }
     }
-
     function executeRedirect(baseUrl) {
         if (!navigator.geolocation) { window.location.href = baseUrl; return; }
         navigator.geolocation.getCurrentPosition(
             (pos) => { 
-                // 抓到了！存起來！
                 sessionStorage.setItem('u_lat', pos.coords.latitude);
                 sessionStorage.setItem('u_lng', pos.coords.longitude);
                 window.location.href = `${baseUrl}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`; 
@@ -236,47 +267,25 @@
         );
     }
 
-
-    // ==========================================
-    // 🎨 渲染邏輯
-    // ==========================================
-
     function generateSmartFilters(data) {
-        // ... (維持原樣，篇幅省略，功能不變) ...
         const bar = document.getElementById('smart-filter-bar');
-        const specs = new Set();
-        const materials = new Set();
-        const categories = new Set();
-
-        data.forEach(p => {
-            if (p.spec) specs.add(p.spec);
-            if (p.material) materials.add(p.material);
-            if (p.category) categories.add(p.category);
-        });
-
+        const specs = new Set(), materials = new Set(), categories = new Set();
+        data.forEach(p => { if (p.spec) specs.add(p.spec); if (p.material) materials.add(p.material); if (p.category) categories.add(p.category); });
+        
         let html = `<div class="filter-chip active" onclick="resetFilters(this)">全部</div>`;
         if (categories.size > 1) categories.forEach(c => html += `<div class="filter-chip" onclick="toggleFilter('keyword', '${c}', this)">${c}</div>`);
         if (specs.size > 1) specs.forEach(s => html += `<div class="filter-chip" onclick="toggleFilter('spec', '${s}', this)">${s}</div>`);
         if (materials.size > 1) materials.forEach(m => html += `<div class="filter-chip" onclick="toggleFilter('material', '${m}', this)">${m}</div>`);
 
-        if (categories.size > 1 || specs.size > 1 || materials.size > 1) {
-            bar.classList.remove('d-none');
-            bar.innerHTML = html;
-        }
+        if (categories.size > 1 || specs.size > 1 || materials.size > 1) { bar.classList.remove('d-none'); bar.innerHTML = html; }
     }
-    
     function toggleFilter(type, val, btn) {
-        document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        activeFilters = { spec: null, material: null, keyword: null };
-        activeFilters[type] = val;
-        applyFilters();
+        document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+        activeFilters = { spec: null, material: null, keyword: null }; activeFilters[type] = val; applyFilters();
     }
     function resetFilters(btn) {
-        document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        activeFilters = { spec: null, material: null, keyword: null };
-        applyFilters();
+        document.querySelectorAll('.filter-chip').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+        activeFilters = { spec: null, material: null, keyword: null }; applyFilters();
     }
     function applyFilters() {
         const filtered = products.filter(p => {
@@ -293,139 +302,118 @@
     }
 
     function renderProductCards(data, container) {
-        if (data.length === 0) {
-            container.innerHTML = `<div class="p-5 text-center text-muted">無符合商品</div>`;
-            return;
-        }
+        if (data.length === 0) { container.innerHTML = `<div class="p-5 text-center text-muted">無符合商品</div>`; return; }
 
-        let html = '';
-        
-        // 1. 計算 Mode B 的店內霸主
-        let storeKingId = null;
+        let storeCategoryMinScores = {}; 
+        let storeCategoryKingIds = {};
+
         if (currentMode === 'store_shelf') {
-            let minStoreScore = 999999;
             data.forEach(p => {
                 const myPrice = p.prices.find(pr => pr.is_target_store);
-                if (myPrice && p.local_score < minStoreScore) {
-                    minStoreScore = p.local_score;
-                    storeKingId = p.id;
+                if (myPrice) {
+                    const cat = p.category;
+                    if (!storeCategoryMinScores[cat] || p.local_score < storeCategoryMinScores[cat]) {
+                        storeCategoryMinScores[cat] = p.local_score;
+                        storeCategoryKingIds[cat] = p.id;
+                    }
                 }
             });
         }
-
-        // 2. 計算 Mode A 的全網霸主
+        
         let globalKingId = null;
         if (currentMode !== 'store_shelf') {
             let minGlobalScore = 999999;
-            data.forEach(p => {
-                if (p.cp_score < minGlobalScore) {
-                    minGlobalScore = p.cp_score;
-                    globalKingId = p.id;
-                }
-            });
+            data.forEach(p => { if (p.cp_score < minGlobalScore) { minGlobalScore = p.cp_score; globalKingId = p.id; } });
         }
 
-        // 3. 置頂處理
         let displayData = [...data];
         if (pinId) {
             const pinnedIndex = displayData.findIndex(p => String(p.id) === String(pinId));
-            if (pinnedIndex > -1) {
-                const pinnedItem = displayData.splice(pinnedIndex, 1)[0];
-                displayData.unshift(pinnedItem);
-            }
+            if (pinnedIndex > -1) { const pinnedItem = displayData.splice(pinnedIndex, 1)[0]; displayData.unshift(pinnedItem); }
         }
 
+        let html = '';
         displayData.forEach(p => {
-            const isStoreKing = (currentMode === 'store_shelf' && p.id === storeKingId);
+            const isStoreKing = (currentMode === 'store_shelf' && storeCategoryKingIds[p.category] === p.id);
             const isGlobalKing = (currentMode !== 'store_shelf' && p.id === globalKingId);
             const isPinned = (String(p.id) === String(pinId));
-            
+            const isDiamond = isPinned && (isStoreKing || isGlobalKing);
+
             let cardClass = 'product-card';
             let badgeHtml = '';
 
             if (currentMode === 'store_shelf') {
-                cardClass += ' store-mode';
-                if (isStoreKing) { 
-                    cardClass += ' store-king';
-                    badgeHtml = `<div class="badge-float global-king-badge"><i class="bi bi-star-fill"></i> 本店CP王</div>`;
+                if (isStoreKing) {
+                    const badgeText = `${p.category} CP王`;
+                    badgeHtml = `<div class="badge-float store-king-badge"><i class="bi bi-star-fill"></i> ${badgeText}</div>`;
                 }
             } else {
-                // Mode A: CP王金框，其他人粉框(已寫在CSS預設)
-                if (isGlobalKing) {
-                    cardClass += ' global-king';
-                    badgeHtml = `<div class="badge-float global-king-badge"><i class="bi bi-trophy-fill"></i> CP霸主</div>`;
-                }
+                if (isGlobalKing) { cardClass += ' global-king'; badgeHtml = `<div class="badge-float global-king-badge"><i class="bi bi-trophy-fill"></i> CP霸主</div>`; }
             }
-            
-            // 置頂覆蓋
-            if (isPinned) {
-                cardClass += ' pinned-card';
-                badgeHtml = `<div class="badge-float pinned-badge"><i class="bi bi-check-circle-fill"></i> 您選擇的</div>`;
-            }
+            if (isPinned) { cardClass += ' pinned-card'; badgeHtml = `<div class="badge-float pinned-badge"><i class="bi bi-check-circle-fill"></i> 您選擇的</div>`; }
+            if (isDiamond) { cardClass += ' diamond-king'; badgeHtml = `<div class="badge-float diamond-badge"><i class="bi bi-gem"></i> 您選的已是霸主</div>`; }
 
             const searchUrl = `/search?keyword=${encodeURIComponent(p.name)}`;
-            
             let priceBody = '';
             
             if (currentMode === 'store_shelf') {
-                // [模式 B]
                 const targetPrice = p.prices.find(pr => pr.is_target_store);
                 if (targetPrice) {
-                    // 原價顯示邏輯
-                    const originHtml = (targetPrice.base_price > targetPrice.price) 
-                        ? `<span class="price-origin">$${targetPrice.base_price}</span>` : '';
-                        
+                    // 🔥 V4.0 關鍵邏輯：如果是店內模式，且沒有原價，我們就生成一個「隱形的」原價佔位符
+                    let originHtml;
+                    if (targetPrice.base_price > targetPrice.price) {
+                        originHtml = `<span class="price-origin">$${targetPrice.base_price}</span>`;
+                    } else {
+                        // 這裡生成隱形佔位，寬度大約是 $00 的寬度，確保把現價往右推
+                        originHtml = `<span class="price-origin placeholder">$00</span>`;
+                    }
+
+                    const priceColorClass = (isStoreKing || isDiamond) ? 'price-current is-cheapest' : 'price-current';
+                    
                     priceBody = `
                         <div class="store-price-box" onclick="goToUrlWithGPS('${searchUrl}')">
-                            <div class="d-flex flex-column">
-                                ${targetPrice.promo_label ? `<span class="promo-badge">${targetPrice.promo_label}</span>` : ''}
-                                <div>
-                                    <span class="store-price-val">$${targetPrice.price}</span>
-                                    ${originHtml}
+                            <div class="store-price-left">
+                                <div class="store-promo-row">
+                                    ${targetPrice.promo_label ? `<span class="promo-badge">${targetPrice.promo_label}</span>` : ''}
+                                </div>
+                                <div class="store-price-val-row">
+                                    ${originHtml} 
+                                    <span class="${priceColorClass}">$${targetPrice.price}</span>
                                 </div>
                             </div>
                             <div class="store-action-link">
-                                全網比價 <i class="bi bi-arrow-right-circle-fill" style="font-size:1.4rem;"></i>
+                                全通路比價 <i class="bi bi-arrow-right-circle-fill" style="font-size:1.4rem;"></i>
                             </div>
                         </div>`;
-                } else { return; }
+                } else return;
             } else {
-                // [模式 A]
                 if (p.prices.length > 0) {
                     const minPrice = Math.min(...p.prices.map(pr => pr.price));
                     p.prices.forEach(pr => {
                         const isLocalWinner = (pr.price === minPrice);
                         let rowClass = isLocalWinner ? 'price-row local-winner' : 'price-row';
                         const linkUrl = `/search?mode=store_shelf&chain_id=${pr.chain_id}&pin_id=${p.id}`;
+                        const originHtml = (pr.base_price > pr.price) ? `<span class="price-origin">$${pr.base_price}</span>` : '';
+                        let promoHtml = pr.promo_label ? `<span class="promo-badge">${pr.promo_label}</span>` : '';
+                        const priceColorClass = isLocalWinner ? 'price-current is-cheapest' : 'price-current';
                         
-                        // 原價顯示
-                        const originHtml = (pr.base_price > pr.price) 
-                            ? `<span class="price-origin">$${pr.base_price}</span>` : '';
-
-                        let promoHtml = '';
-                        if (pr.promo_label) promoHtml = `<div class="promo-badge">${pr.promo_label}</div>`;
-
                         priceBody += `
                             <div class="${rowClass}" onclick="goToUrlWithGPS('${linkUrl}')">
                                 <div class="chain-info">
                                     ${pr.chain_logo ? `<img src="${pr.chain_logo}" class="chain-logo">` : ''}
                                     <div class="chain-name">${pr.chain_name}</div>
+                                    <i class="bi bi-chevron-right chain-arrow-icon"></i>
                                 </div>
-                                <div class="d-flex align-items-center gap-3">
-                                    <div class="price-right">
-                                        ${promoHtml}
-                                        <div>
-                                            <span class="price-current">$${pr.price}</span>
-                                            ${originHtml}
-                                        </div>
+                                <div class="price-right">
+                                    <div class="promo-row">${promoHtml}</div>
+                                    <div class="price-val-row">
+                                        ${originHtml} 
+                                        <span class="${priceColorClass}">$${pr.price}</span>
                                     </div>
-                                    <div class="btn-go"><i class="bi bi-chevron-right"></i></div>
                                 </div>
                             </div>`;
                     });
-                } else {
-                    priceBody = `<div class="p-3 text-center text-muted small">暫無報價</div>`;
-                }
+                } else priceBody = `<div class="p-3 text-center text-muted small">暫無報價</div>`;
             }
 
             html += `
@@ -434,21 +422,16 @@
                     <div class="p-header">
                         <div class="p-top-row">
                             <div class="p-name" onclick="goToUrlWithGPS('${searchUrl}')">${p.name}</div>
-                            <div class="p-category">${p.category}</div>
                         </div>
                         <div class="p-meta">
+                            <span class="p-tag p-category">${p.category}</span>
                             ${p.spec ? `<span class="p-tag">${p.spec}</span>` : ''}
                             ${p.material ? `<span class="p-tag">${p.material}</span>` : ''}
-                            <span class="p-cp">
-                                ${p.cp_score < 999 ? '$'+p.cp_score.toFixed(2)+'/'+(p.unit||'ml') : ''}
-                            </span>
+                            <span class="p-cp">${p.cp_display || ''}</span>
                         </div>
                     </div>
-                    <div class="price-list">
-                        ${priceBody}
-                    </div>
-                </div>
-            `;
+                    <div class="price-list">${priceBody}</div>
+                </div>`;
         });
         container.innerHTML = html;
     }
@@ -473,23 +456,12 @@
             </div>`;
         container.innerHTML = html;
     }
-
-    function renderEmptyState(container) {
-        container.innerHTML = `
-            <div class="d-flex flex-column align-items-center justify-content-center pt-5 mt-5">
-                <i class="bi bi-robot text-secondary mb-3" style="font-size: 3rem;"></i>
-                <h5 class="fw-bold text-dark">找不到商品</h5>
-                <a href="/search" class="btn btn-outline-dark rounded-pill px-4 mt-2">回大廳</a>
-            </div>`;
-    }
-
+    function renderEmptyState(container) { container.innerHTML = `<div class="p-5 text-center">找不到商品</div>`; }
     function handleEnter(event) { if (event.key === 'Enter') performSearch(); }
     function performSearch() {
         const input = document.getElementById('searchInput');
         if (input && input.value.trim()) goToUrlWithGPS(`/search?keyword=${encodeURIComponent(input.value.trim())}`);
     }
-    
-    // LIFF Init
     window.addEventListener('load', function() { if (typeof liff !== 'undefined') liff.init({ liffId: "{{ liff_id }}" }); });
 </script>
 </body>

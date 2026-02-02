@@ -9,31 +9,56 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import psycopg2
 from psycopg2.extras import DictCursor
 import os
+from dotenv import load_dotenv
+
+# ==========================================
+# 🛠️ 環境變數載入設定 (強制讀取版)
+# ==========================================
+basedir = os.path.abspath(os.path.dirname(__file__))
+env_path = os.path.join(basedir, '.env')
+
+if os.path.exists(env_path):
+    # 🔥 重點修正：加上 override=True，強制以 .env 檔案內容為準
+    load_dotenv(env_path, override=True)
+    print(f"✅ [Local Dev] 已強制載入 .env 設定: {env_path}")
+else:
+    print(f"⚠️ [Production] 未找到 .env，將使用系統環境變數 (Render)")
+
 import json
 from datetime import datetime, timedelta
+from urllib.parse import quote, unquote
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, FlexSendMessage, FollowEvent
-from urllib.parse import quote, unquote
-# 注意：這裡雖然 import 了 database 和 sqlite3，但在雲端主要依賴 psycopg2
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage, 
+    FlexSendMessage, FollowEvent, PostbackEvent
+)
 import config
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', config.SECRET_KEY) # 優先讀取環境變數
+app.secret_key = os.environ.get('SECRET_KEY', config.SECRET_KEY)
 
-line_bot_api = LineBotApi(os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', config.LINE_CHANNEL_ACCESS_TOKEN))
-handler = WebhookHandler(os.environ.get('LINE_CHANNEL_SECRET', config.LINE_CHANNEL_SECRET))
+# ==========================================
+# 🤖 LINE Bot 設定
+# ==========================================
+channel_access_token = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', config.LINE_CHANNEL_ACCESS_TOKEN)
+channel_secret = os.environ.get('LINE_CHANNEL_SECRET', config.LINE_CHANNEL_SECRET)
 
+line_bot_api = LineBotApi(channel_access_token)
+handler = WebhookHandler(channel_secret)
+# ==========================================
+# 🗄️ 資料庫連線 Helper (補在這裡！)
+# ==========================================
 def get_db():
-    # ✅ FIX: 確保使用 PostgreSQL 連線，並使用 DictCursor 讓操作像 SQLite 一樣方便
+    """建立 PostgreSQL 連線 (支援 Render 格式修正)"""
     db_url = os.environ.get('DATABASE_URL')
+    
+    # Render 的 postgres:// 需要轉為 postgresql:// 才能給 SQLAlchemy/psycopg2 用
     if db_url and db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     
     conn = psycopg2.connect(db_url, cursor_factory=DictCursor)
     return conn
-
-def is_admin_logged_in(): return session.get('admin_logged_in')
 
 # 輔助：轉型防呆
 def to_float(val, default=0.0):
@@ -43,6 +68,14 @@ def to_float(val, default=0.0):
 def to_int(val, default=0):
     try: return int(val)
     except: return default
+
+# 👇 這裡會直接告訴你真相
+print("---------------- 系統啟動檢查 ----------------")
+print(f"🔑 Secret 前5碼: {channel_secret[:5] if channel_secret else 'None'}")
+print(f"📱 目前 LIFF ID: {os.environ.get('LIFF_ID', getattr(config, 'LIFF_ID', '⚠️ 未設定'))}")
+print("---------------------------------------------")
+
+# ... (後面接 get_db 函式)
 
 # ----------------------------------------------------
 # 💓 心跳檢測站 (防止 Render 休眠用)
@@ -362,8 +395,9 @@ def api_price_update():
         return jsonify({'status':'error', 'msg':str(e)}), 500
     finally: conn.close()
 
+
 # ==========================================
-# 🛒 消費者搜尋 V2.0 (智慧篩選 + 歷史低價)
+# 🛒 消費者搜尋 V3.5 (分組冠軍 + 液態單位修正)
 # ==========================================
 @app.route('/search')
 def consumer_search():
@@ -373,7 +407,7 @@ def consumer_search():
     target_category = request.args.get('category')
     pin_product_id = request.args.get('pin_id')
     
-    # 📍 V89.7: 接收定位與身分
+    # V89.7: 接收定位與身分
     lat = request.args.get('lat', '')
     lng = request.args.get('lng', '')
     user_line_id = request.args.get('line_id', '')
@@ -381,18 +415,17 @@ def consumer_search():
     conn = get_db(); cur = conn.cursor()
     products_list = []
     
-    # 1. 流量清洗與紀錄 (寫入台灣時間)
-    if keyword and len(keyword) > 0:
+    # 1. 流量紀錄 (寫入台灣時間)
+    if keyword:
         try: 
-            # 這裡維持您的 "Store Taiwan Time" 策略
             cur.execute("""
                 INSERT INTO search_logs (keyword, line_id, lat, lng, log_time) 
                 VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP + interval '8 hours')
             """, (keyword, user_line_id, lat, lng))
             conn.commit()
-        except Exception as e: print(f"Log Error: {e}")
+        except: pass
 
-    # 2. 準備大廳資料 (如果沒搜尋時顯示)
+    # 2. 準備大廳資料 (沒搜尋時顯示)
     lobby_data = {'categories': [], 'chains': []}
     if not keyword and not mode:
         try:
@@ -402,10 +435,9 @@ def consumer_search():
             for r in cur.fetchall(): lobby_data['chains'].append({"id": dict(r)['id'], "name": dict(r)['name'], "logo_url": dict(r)['logo_url'], "icon": "🏪"})
         except: pass
         conn.close()
-        return render_template('search.html', products_data="[]", lobby_data=lobby_data, search_keyword="", search_mode="", liff_id=config.LIFF_ID, pin_id="")
+        return render_template('search.html', products_data="[]", lobby_data=lobby_data, search_keyword="", search_mode="", liff_id=os.environ.get('LIFF_ID', config.LIFF_ID), pin_id="")
 
     # 3. 撈產品基礎資料
-    # 🔥 重點：把 keywords 也撈出來，前端做篩選按鈕要用
     cols = "id, name, spec, material, category, keywords, priority, image_url, capacity, unit"
     if mode == 'store_shelf' and target_chain_id:
         if target_category: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 AND category = %s ORDER BY priority DESC, id", (target_category,))
@@ -414,22 +446,11 @@ def consumer_search():
         cur.execute(f"SELECT {cols} FROM products WHERE status = 1 ORDER BY priority DESC, category, id")
     products_rows = cur.fetchall()
     
-    # 4. 🔥 新增：撈取「過去30天歷史低價」
-    # 我們算出每個商品在過去 30 天內的最低價，用來標示 "歷史低價"
+    # 4. 歷史低價 (30天內最低)
     history_low_map = {}
     try:
-        # 這裡用 CURRENT_TIMESTAMP 因為 price_logs 已經校正為 UTC (或我們定義的基準)
-        # 這裡抓取每個商品過去30天的最低成交價
-        h_sql = """
-            SELECT product_id, MIN(new_price) as min_price 
-            FROM price_logs 
-            WHERE log_time >= CURRENT_TIMESTAMP - interval '30 days'
-            AND status = 1 
-            GROUP BY product_id
-        """
-        cur.execute(h_sql)
-        for r in cur.fetchall():
-            history_low_map[r['product_id']] = float(r['min_price'])
+        cur.execute("SELECT product_id, MIN(new_price) as min_price FROM price_logs WHERE log_time >= CURRENT_TIMESTAMP - interval '30 days' AND status = 1 GROUP BY product_id")
+        for r in cur.fetchall(): history_low_map[r['product_id']] = float(r['min_price'])
     except: pass
 
     # 5. 撈目前架上價格
@@ -446,8 +467,9 @@ def consumer_search():
     
     # 6. 資料組裝
     products_map = {p['id']: dict(p) for p in products_rows}
+    # 初始化
     for pid in products_map:
-        products_map[pid].update({'prices': [], 'cp_score': 999999.0, 'local_score': 999999.0, 'selling_at': []})
+        products_map[pid].update({'prices': [], 'cp_score': 999999.0, 'local_score': 999999.0, 'selling_at': [], 'cp_display': ''})
 
     for row in prices_rows:
         d = dict(row)
@@ -456,48 +478,41 @@ def consumer_search():
             p = products_map[pid]
             price = float(d['price'])
             cap = to_float(p.get('capacity'), 0)
+            unit = str(p.get('unit', '')).strip()
             
-            # CP值計算
+            # CP值計算 (每1單位價格，用於排序)
             score = (price / cap) if cap > 0 and price > 0 else price
-            if score < p['cp_score']: p['cp_score'] = score
             
-            # 店內模式分數
+            # cp_display (顯示用，自動轉 100ml)
+            cp_disp = ""
+            if cap > 0 and price > 0:
+                # 判斷液體/重量單位 (不分大小寫)
+                high_vol_units = ['ml', 'g', 'cc', 'cm']
+                if unit.lower() in high_vol_units:
+                    val_100 = (price / cap) * 100
+                    cp_disp = f"${round(val_100, 1)}/100{unit}"
+                else:
+                    cp_disp = f"${round(score, 1)}/{unit}"
+
+            # 更新全域 CP 霸主
+            if score < p['cp_score']: 
+                p['cp_score'] = score
+                p['cp_display'] = cp_disp 
+            
+            # 更新店內 CP 分數
             is_target_store = (str(d['chain_id']) == str(target_chain_id)) if target_chain_id else False
             if is_target_store:
                 if score < p['local_score']: p['local_score'] = score
 
-            # 顯示格式化
-            unit = p.get('unit', '')
-            cp_str = ""
-            if cap > 0 and price > 0:
-                high_vol = ['ml', 'g', 'cc', 'cm']
-                val = (price/cap)*100 if unit in high_vol else (price/cap)
-                suffix = f"100{unit}" if unit in high_vol else unit
-                cp_str = f"(${round(val, 1)}/{suffix})"
-            
-            # 時間顯示 (配合全台灣時間資料庫，直接與現在的台灣時間比對)
+            # 時間
             time_str = ""
             if d['update_time']:
                 try:
-                    # 假設 DB 存的是台灣時間，我們這邊用台灣時間來比
-                    now_tw = datetime.utcnow() + timedelta(hours=8)
-                    # 如果 DB 存的是 UTC，這裡要調整。假設您已執行 SQL 改為台灣時間：
                     db_time = d['update_time']
-                    if isinstance(db_time, str):
-                        db_time = datetime.strptime(db_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
-                    
-                    diff = now_tw - db_time
-                    # 簡單防呆：如果差異是負的 (代表 DB 時間比現在還未來)，就當作 "剛剛"
-                    if diff.total_seconds() < 0: diff = timedelta(seconds=0)
-
-                    if diff.days == 0: 
-                        time_str = "剛剛" if diff.seconds < 3600 else f"{diff.seconds // 3600}小時前"
-                    elif diff.days == 1: time_str = "昨天"
-                    else: time_str = db_time.strftime("%m/%d")
+                    if isinstance(db_time, str): db_time = datetime.strptime(db_time.split('.')[0], "%Y-%m-%d %H:%M:%S")
+                    time_str = db_time.strftime("%m/%d")
                 except: pass
 
-            # 🔥 判斷歷史低價
-            # 如果目前價格 <= 過去30天最低價，給予 True
             hist_min = history_low_map.get(pid, 999999)
             is_hist_low = (price <= hist_min) and (price > 0)
 
@@ -508,22 +523,21 @@ def consumer_search():
                 'price': int(price),
                 'base_price': int(d.get('base_price', 0)),
                 'promo_label': d.get('promo_label', ''),
-                'cp_val': cp_str,
+                'cp_val': cp_disp, 
                 'time_ago': time_str,
                 'is_target_store': is_target_store,
-                'is_hist_low': is_hist_low  # 傳給前端畫火把 🔥
+                'is_hist_low': is_hist_low
             })
             p['selling_at'].append(d['chain_name'])
 
     # 7. 排序與關鍵字過濾
     raw_list = list(products_map.values())
     
-    # 搜尋邏輯：名稱、材質、分類、關鍵字、通路名 都要搜
+    # 搜尋邏輯
     if keyword:
         kws = keyword.lower().split()
         filtered_list = []
         for p in raw_list:
-            # 組合所有可搜尋的文字
             search_text = (
                 f"{p['name']} {p['material'] or ''} {p['category']} "
                 f"{p.get('keywords') or ''} {' '.join(p['selling_at'])}"
@@ -532,33 +546,51 @@ def consumer_search():
                 filtered_list.append(p)
         raw_list = filtered_list
     
-    # 預設排序：先顯示「有報價」的，再依 CP 值排序
-    # (您提到的"相關度"通常需要更複雜的演算法，目前先用有無關鍵字命中+CP值做基礎)
+    # 預設排序
     def get_sort_key(p):
         is_pinned = (str(p['id']) == str(pin_product_id)) if pin_product_id else False
         return (0 if is_pinned else 1, p['cp_score'])
 
+    target_chain_info = {} # 用於傳遞給前端顯示 Store Header
+    
     if mode == 'store_shelf' and target_chain_id:
+        # 撈出該通路的資訊 (Logo, Name)
+        try:
+            cur.execute("SELECT id, name, logo_url FROM chains WHERE id = %s", (target_chain_id,))
+            chain_res = cur.fetchone()
+            if chain_res: target_chain_info = dict(chain_res)
+        except: pass
+
         final_list = []
         for p in raw_list:
             if any(pr['is_target_store'] for pr in p['prices']):
                 final_list.append(p)
+        
+        # 店內模式排序：置頂 -> 分類 -> 本店分數
         products_list = sorted(final_list, key=lambda x: (
             0 if str(x['id']) == str(pin_product_id) else 1, 
             x['category'], 
             x['local_score']
         ))
     else:
-        # 一般模式：只顯示有價格的商品
+        # 一般模式排序：置頂 -> 全域分數
         products_list = sorted([p for p in raw_list if len(p['prices']) > 0], key=get_sort_key)
     
-    # 價格內排序：便宜的在上面
+    # 價格內排序
     for p in products_list:
         p['prices'].sort(key=lambda x: x['price'])
 
     conn.close()
-    return render_template('search.html', products_data=json.dumps(products_list), lobby_data=lobby_data, search_keyword=keyword, search_mode=mode, liff_id=config.LIFF_ID, pin_id=pin_product_id)
-
+    
+    # 🔥 注意：這裡新增傳入 target_chain_info 供前端使用
+    return render_template('search.html', 
+                           products_data=json.dumps(products_list), 
+                           lobby_data=lobby_data, 
+                           search_keyword=keyword, 
+                           search_mode=mode, 
+                           liff_id=os.environ.get('LIFF_ID', config.LIFF_ID), 
+                           pin_id=pin_product_id,
+                           target_chain_info=json.dumps(target_chain_info))
 # ==========================================
 # 👑 後台管理
 # ==========================================
