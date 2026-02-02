@@ -237,19 +237,23 @@
         if (u_uid) sessionStorage.setItem('u_uid', u_uid);
     }
 
-    // 🔥🔥🔥 V4.5 絕對路徑防禦版 (解決 404 問題) 🔥🔥🔥
+    // 🔥 V4.6 終極防呆版
     function goToUrlWithGPS(targetUrl) {
         
-        // 1. 強制鎖定絕對路徑：防止 /search/search
-        if (!targetUrl.startsWith('http')) {
-             // 確保有斜線
-             if (!targetUrl.startsWith('/')) targetUrl = '/' + targetUrl;
-             
-             // 如果已經有雙重路徑，強制替換
-             targetUrl = targetUrl.replace('/search/search', '/search');
-             
-             // 加上網域 (變成 https://...)
-             targetUrl = window.location.origin + targetUrl;
+        // 1. 強制轉為絕對路徑 (這是最關鍵的一步！)
+        // 如果 targetUrl 不是 http 開頭，也不是 / 開頭，就補上 /
+        if (!targetUrl.startsWith('http') && !targetUrl.startsWith('/')) {
+            targetUrl = '/' + targetUrl;
+        }
+        
+        // 如果 targetUrl 是 / 開頭，補上網域 (變成 https://...)
+        if (targetUrl.startsWith('/')) {
+            targetUrl = window.location.origin + targetUrl;
+        }
+
+        // 2. 雙重檢查：如果網址裡出現了 /search/search，強制修正
+        if (targetUrl.includes('/search/search')) {
+            targetUrl = targetUrl.replace('/search/search', '/search');
         }
 
         let separator = targetUrl.includes('?') ? '&' : '?';
@@ -262,7 +266,9 @@
         if (cachedLat && cachedLng) {
             finalUrl += `${separator}lat=${cachedLat}&lng=${cachedLng}`;
             if (cachedUid) finalUrl += `&line_id=${cachedUid}`;
-            window.location.href = finalUrl;
+            
+            // 3. 使用 replace 跳轉 (比 href 更穩定)
+            window.location.replace(finalUrl);
             return;
         }
         
@@ -483,6 +489,7 @@
     function handleEnter(event) { if (event.key === 'Enter') performSearch(); }
     function performSearch() {
         const input = document.getElementById('searchInput');
+        // ❌ 原本的寫法：依賴相對路徑，容易出錯
         if (input && input.value.trim()) goToUrlWithGPS(`/search?keyword=${encodeURIComponent(input.value.trim())}`);
     }
     window.addEventListener('load', function() { if (typeof liff !== 'undefined') liff.init({ liffId: myLiffId }); });
