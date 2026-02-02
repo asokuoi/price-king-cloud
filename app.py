@@ -89,32 +89,20 @@ def keep_alive():
 # ==========================================
 # 🌐 基礎路由
 # ==========================================
-
-# 🛡️ 強制允許 GPS 權限
-@app.after_request
-def add_header(response):
-    # 允許 geolocation
-    response.headers['Permissions-Policy'] = 'geolocation=(self "https://price-king-cloud.onrender.com")'
-    return response
-
 @app.route('/')
 def index():
-    # 1. 處理 LIFF 登入後的跳轉 (liff.state)
+    # 1. 處理 LIFF 登入後的跳轉
     liff_state = request.args.get('liff.state')
     if liff_state:
-        # 解碼目標路徑
         target_path = unquote(liff_state)
-        # 防止惡意跳轉，只允許站內路徑
         if target_path.startswith('/'):
             return redirect(target_path)
     
-    # 2. 如果沒有指定跳轉，預設去搜尋頁
-    # ⚠️ 請確認你的搜尋頁函式名稱！如果是 def search(): 這裡就要寫 'search'
-    # ⚠️ 如果是 def consumer_search(): 這裡就寫 'consumer_search'
+    # 2. 修正名稱對應
     try:
-        return redirect(url_for('search')) 
+        # 🔥 修正：這裡要對應函式名稱 consumer_search
+        return redirect(url_for('consumer_search')) 
     except:
-        # 萬一名字打錯，直接硬導向網址 '/search' (保命符)
         return redirect('/search')
 
 @app.route('/admin')
@@ -1226,16 +1214,19 @@ def admin_dead_stock():
     try: cur.execute("SELECT p.id, p.name, p.category, MAX(pr.update_time) as last_update FROM products p LEFT JOIN prices pr ON p.id = pr.product_id GROUP BY p.id HAVING last_update < CURRENT_DATE - interval '30 days' OR last_update IS NULL ORDER BY last_update ASC"); products = [dict(r) for r in cur.fetchall()]
     except: products = []
     conn.close(); return render_template('admin/analysis.html', products=products, title="滯銷分析")
-# 👇👇👇【新增這段：強制禁止瀏覽器快取】👇👇👇
+# 👇👇👇 【二合一強效版】放在檔案最下方 (if __name__ == "__main__": 之前) 👇👇👇
 @app.after_request
 def add_header(response):
-    # 告訴瀏覽器：不要存快取！每次都給我重新下載！
+    # 1. 🛡️ 強制允許 GPS 權限 (解決 Android 16/Chrome 限制)
+    response.headers['Permissions-Policy'] = 'geolocation=(self "https://price-king-cloud.onrender.com")'
+    
+    # 2. 🚀 強制禁止瀏覽器快取 (解決 404 /search/search 問題)
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
+    
     return response
-# 👆👆👆【新增結束】👆👆👆
-
+# 👆👆👆 這樣寫最穩，不會衝突 👆👆👆
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
