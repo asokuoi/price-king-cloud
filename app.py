@@ -263,20 +263,20 @@ from datetime import datetime, timedelta  # 務必確認檔頭有引入這兩個
 @app.route('/api/price/update', methods=['POST'])
 def api_price_update():
     d = request.json
-    # 0. 基礎資料檢查
+    # 0. 基礎檢查
     if not all([d.get('product_id'), d.get('chain_id'), d.get('line_id')]): 
         return jsonify({'status':'error', 'msg': '資料不全'}), 400
     
     conn = get_db(); cur = conn.cursor()
     try:
-        # 1. 驗證員工身分 & 狀態
+        # 1. 驗證員工
         cur.execute("SELECT status, name, wallet, level FROM staff WHERE line_id = %s", (d['line_id'],))
         staff_res = cur.fetchone()
         if not staff_res: return jsonify({'status': 'error', 'msg': '未授權用戶'})
         staff = dict(staff_res)
         if staff.get('status', 1) == 0: return jsonify({'status': 'error', 'msg': '帳號已停權'})
         
-        # 2. 處理並正規化價格數據
+        # 2. 處理數值
         final_price = to_float(d.get('price'))
         base_price = to_float(d.get('base_price'))
         pt = to_int(d.get('promo_type'), 1)
@@ -295,39 +295,40 @@ def api_price_update():
         elif pt == 6: promo_label = f"第{pq}件{int(pv/10) if pv%10==0 else int(pv)}折"
 
         # ==============================================================================
-        # 🔥 重點修改 3. 獎金壓制邏輯 (改用 Python 計算時間區間)
+        # 3. 🔥 邏輯升級：自動作廢今日舊紀錄 + 獎金判斷
         # ==============================================================================
         
-        # 步驟 A: 算出「台灣時間今天 00:00:00」對應的「UTC 時間」
-        # 邏輯：現在 UTC 時間 -> +8變台灣時間 -> 無條件捨去時分秒變凌晨 -> -8變回 UTC
+        # A. 算出今天起始時間 (UTC)
         now_utc = datetime.utcnow()
         now_tw = now_utc + timedelta(hours=8)
         today_start_tw = now_tw.replace(hour=0, minute=0, second=0, microsecond=0)
         today_start_utc = today_start_tw - timedelta(hours=8)
         
-        # 步驟 B: 直接查資料庫：「這個人、這商品、這通路」在「今天起始點(UTC)」之後有沒有紀錄？
+        # B. 搜尋「今天」已存在的紀錄
         check_sql = """
             SELECT id FROM price_logs 
             WHERE staff_line_id = %s AND product_id = %s AND chain_id = %s
-            AND log_time >= %s
-            LIMIT 1
+            AND log_time >= %s AND status = 1
         """
         cur.execute(check_sql, (d['line_id'], d['product_id'], d['chain_id'], today_start_utc))
-        has_record_today = cur.fetchone()
+        prev_logs = cur.fetchall()
         
         should_pay = False
-        if not has_record_today:
-            # 查無紀錄 -> 代表是今天第一筆 -> 發錢
+        if not prev_logs:
+            # 沒查到 -> 今天第一筆 -> 發錢
             should_pay = True
             is_paid_val = 1
         else:
-            # 查有紀錄 -> 代表今天已經改過 (或是改錯又改) -> 不重複發錢
+            # 查到了 -> 今天已經有紀錄
             should_pay = False
             is_paid_val = 0
+            
+            # 🔥 關鍵動作：把今天之前的幾筆 (就算是剛剛打的) 全部作廢 (status=0)
+            # 這樣戰情室就只會看到最新的一筆是「有效」的，不會有一堆 $0 的待核銷
+            for log in prev_logs:
+                cur.execute("UPDATE price_logs SET status = 0 WHERE id = %s", (log['id'],))
 
-        # ==============================================================================
-        # 4. 更新 prices 主表 (🔥 使用純 UTC CURRENT_TIMESTAMP)
-        # ==============================================================================
+        # 4. 更新 prices 主表 (UTC)
         cur.execute("SELECT id FROM prices WHERE product_id=%s AND chain_id=%s", (d['product_id'], d['chain_id']))
         row = cur.fetchone()
         
@@ -343,9 +344,7 @@ def api_price_update():
                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,%s)"""
             cur.execute(sql, (d['product_id'], d['chain_id'], final_price, base_price, pt, pq, pv, promo_label, d['line_id']))
         
-        # ==============================================================================
-        # 5. 寫入 Log (🔥 使用純 UTC CURRENT_TIMESTAMP)
-        # ==============================================================================
+        # 5. 寫入 Log (UTC) - 這筆新的 status 預設是 1 (有效)
         cur.execute("""INSERT INTO price_logs 
                        (staff_line_id, product_id, chain_id, new_price, base_price, promo_type, promo_qty, promo_val, promo_label, log_time, is_paid, status) 
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,%s, 1)""", 
@@ -356,8 +355,6 @@ def api_price_update():
             cur.execute("UPDATE staff SET wallet = wallet + 5 WHERE line_id = %s", (d['line_id'],))
         
         conn.commit()
-        
-        # 回傳 bonus 欄位，方便您在前端 debug 知道這筆有沒有發錢
         return jsonify({'status':'success', 'label': promo_label, 'bonus': 5 if should_pay else 0})
         
     except Exception as e: 
