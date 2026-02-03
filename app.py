@@ -318,21 +318,55 @@ def audit_page():
     conn.close()
     return render_template('audit.html', chains=chains, products=products, price_map=price_map, liff_id=config.LIFF_ID)
 
+# ==========================================
+# 👤 員工身分驗證 API (V5.0 防呆修正版)
+# ==========================================
 @app.route('/api/staff/check', methods=['POST'])
 def api_staff_check():
     line_id = request.json.get('line_id')
-    if not line_id: return jsonify({'status': 'error'})
-    conn = get_db(); cur = conn.cursor()
-    # ✅ FIX: ? -> %s
-    cur.execute("SELECT level, chain_id, name, status, wallet FROM staff WHERE line_id = %s", (line_id,))
-    res = cur.fetchone()
-    conn.close()
+    if not line_id: 
+        return jsonify({'status': 'error', 'msg': 'No Line ID'})
+
+    conn = get_db()
+    cur = conn.cursor()
     
-    if res:
-        r = dict(res)
-        if r.get('status', 1) == 0: return jsonify({'status': 'banned', 'name': r['name']})
-        return jsonify({'status': 'success', 'level': r['level'], 'chain_id': r['chain_id'], 'name': r['name'], 'wallet': r['wallet']})
-    else: return jsonify({'status': 'unregistered'})
+    try:
+        # 1. 嘗試查詢資料 (包含 wallet)
+        cur.execute("""
+            SELECT level, chain_id, name, status, wallet 
+            FROM staff 
+            WHERE line_id = %s
+        """, (line_id,))
+        
+        res = cur.fetchone()
+        
+        if res:
+            r = dict(res)
+            # 檢查停權狀態
+            if r.get('status', 1) == 0: 
+                return jsonify({'status': 'banned', 'name': r['name']})
+            
+            # ✅ 成功回傳 (使用 .get 防呆，萬一字典裡沒 wallet 也不會報錯)
+            return jsonify({
+                'status': 'success', 
+                'level': r['level'], 
+                'chain_id': r['chain_id'], 
+                'name': r['name'], 
+                'wallet': r.get('wallet', 0) 
+            })
+        else:
+            return jsonify({'status': 'unregistered'})
+
+    except Exception as e:
+        # 🔥 捕捉所有資料庫錯誤 (例如缺欄位)，並印出 Log
+        print(f"❌ Database Error in /api/staff/check: {e}")
+        conn.rollback() # 確保連線不會卡死
+        return jsonify({'status': 'error', 'msg': str(e)}), 500
+    
+    finally:
+        conn.close()
+
+    
 from datetime import datetime, timedelta  # 務必確認檔頭有引入這兩個
 
 @app.route('/api/price/update', methods=['POST'])
