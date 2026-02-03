@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold"><i class="bi bi-speedometer2 me-2"></i> 戰情勾稽室 V2.1</h3>
+    <h3 class="fw-bold"><i class="bi bi-speedometer2 me-2"></i> 商品價格勾稽室</h3>
 </div>
 
 <div class="card shadow-sm border-0 mb-4">
@@ -52,7 +52,7 @@
                         <th>通路 / 商品</th>
                         <th>變動 (舊➔新)</th>
                         <th>狀態</th>
-                        <th class="text-end pe-4">管理</th>
+                        <th class="text-end pe-4">管理操作</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -90,10 +90,9 @@
 
                             <td>
                                 <div class="d-flex align-items-center">
-                                    <div class="fw-bold text-primary me-2">{{ log.product_name }}</div>
-                                    <button class="btn btn-link p-0 text-secondary" onclick="showHistory({{ log.chain_id }}, {{ log.product_id }}, '{{ log.chain_name }}', '{{ log.product_name }}')">
-                                        <i class="bi bi-clock-history"></i>
-                                    </button>
+                                    <div class="fw-bold text-primary me-2" style="cursor: pointer;" onclick="showHistory({{ log.chain_id }}, {{ log.product_id }}, '{{ log.chain_name }}', '{{ log.product_name }}')">
+                                        {{ log.product_name }} <i class="bi bi-info-circle-fill ms-1 small text-muted"></i>
+                                    </div>
                                 </div>
                                 <small class="text-muted">
                                     {{ log.chain_name }} | {{ log.spec or '' }} 
@@ -132,13 +131,20 @@
                             </td>
 
                             <td class="text-end pe-4">
-                                {% if log.status == 1 %}
-                                    <form action="/admin/audit/toggle" method="POST" class="d-inline" onsubmit="return confirm('⚠️ 確定作廢？');">
-                                        <input type="hidden" name="log_id" value="{{ log.id }}">
-                                        <input type="hidden" name="return_date" value="{{ current_date }}">
-                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-x-circle"></i></button>
-                                    </form>
-                                {% endif %}
+                                <form action="/admin/audit/toggle" method="POST" class="d-inline">
+                                    <input type="hidden" name="log_id" value="{{ log.id }}">
+                                    <input type="hidden" name="return_date" value="{{ current_date }}">
+                                    
+                                    {% if log.status == 1 %}
+                                        <button class="btn btn-sm btn-outline-danger" title="作廢 (取消獎金)" onclick="return confirm('⚠️ 確定作廢？\n\n這筆紀錄將變為無效，且員工將領不到這筆獎金。')">
+                                            <i class="bi bi-x-circle"></i> 作廢
+                                        </button>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-success" title="復活 (恢復獎金)" onclick="return confirm('✨ 確定復活？\n\n這筆紀錄將變為有效，且員工將重新獲得這筆獎金。')">
+                                            <i class="bi bi-arrow-counterclockwise"></i> 復活
+                                        </button>
+                                    {% endif %}
+                                </form>
                             </td>
                         </tr>
                         {% endfor %}
@@ -182,18 +188,13 @@
 
 <script>
 function showHistory(chainId, productId, chainName, prodName) {
-    // 1. 設定標題
     document.getElementById('histTitle').textContent = `${chainName} - ${prodName}`;
-    
-    // 2. 顯示 Modal
     var myModal = new bootstrap.Modal(document.getElementById('historyModal'));
     myModal.show();
     
-    // 3. 清空並顯示 Loading
     const tbody = document.getElementById('histBody');
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> 載入歷史資料...</td></tr>';
     
-    // 4. 呼叫 API
     fetch(`/admin/api/history?chain_id=${chainId}&product_id=${productId}`)
         .then(res => res.json())
         .then(data => {

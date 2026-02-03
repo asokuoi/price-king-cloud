@@ -25,7 +25,7 @@ else:
     print(f"⚠️ [Production] 未找到 .env，將使用系統環境變數 (Render)")
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote, unquote
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
@@ -369,10 +369,12 @@ def api_staff_check():
     
 from datetime import datetime, timedelta  # 務必確認檔頭有引入這兩個
 
+# ==========================================
+# ⚡ Price update API (V90.0: 源頭修正版)
+# ==========================================
 @app.route('/api/price/update', methods=['POST'])
 def api_price_update():
     d = request.json
-    # 0. 基礎檢查
     if not all([d.get('product_id'), d.get('chain_id'), d.get('line_id')]): 
         return jsonify({'status':'error', 'msg': '資料不全'}), 400
     
@@ -403,17 +405,13 @@ def api_price_update():
         elif pt == 5: promo_label = f"第{pq}件${int(pv)}"
         elif pt == 6: promo_label = f"第{pq}件{int(pv/10) if pv%10==0 else int(pv)}折"
 
-        # ==============================================================================
-        # 3. 🔥 邏輯升級：自動作廢今日舊紀錄 + 獎金判斷
-        # ==============================================================================
-        
-        # A. 算出今天起始時間 (UTC)
+        # 3. 邏輯判定 (修正版)
         now_utc = datetime.utcnow()
         now_tw = now_utc + timedelta(hours=8)
         today_start_tw = now_tw.replace(hour=0, minute=0, second=0, microsecond=0)
         today_start_utc = today_start_tw - timedelta(hours=8)
         
-        # B. 搜尋「今天」已存在的紀錄
+        # 搜尋今天該員工針對該商品的有效紀錄
         check_sql = """
             SELECT id FROM price_logs 
             WHERE staff_line_id = %s AND product_id = %s AND chain_id = %s
@@ -424,20 +422,21 @@ def api_price_update():
         
         should_pay = False
         if not prev_logs:
-            # 沒查到 -> 今天第一筆 -> 發錢
+            # 沒查到 -> 今天第一筆 -> 有效
             should_pay = True
-            is_paid_val = 1
+            # 🔥 修改處：原本是 1，現在改成 0 (待核銷)
+            is_paid_val = 0 
         else:
-            # 查到了 -> 今天已經有紀錄
+            # 查到了 -> 重複盤點 -> 視為修正，不發錢 (或合併計算)
             should_pay = False
-            is_paid_val = 0
+            # 🔥 修改處：重複的標記為 -1 (不計費)
+            is_paid_val = -1
             
-            # 🔥 關鍵動作：把今天之前的幾筆 (就算是剛剛打的) 全部作廢 (status=0)
-            # 這樣戰情室就只會看到最新的一筆是「有效」的，不會有一堆 $0 的待核銷
+            # 把之前的舊紀錄作廢 (status=0)
             for log in prev_logs:
                 cur.execute("UPDATE price_logs SET status = 0 WHERE id = %s", (log['id'],))
 
-        # 4. 更新 prices 主表 (UTC)
+        # 4. 更新 prices 主表
         cur.execute("SELECT id FROM prices WHERE product_id=%s AND chain_id=%s", (d['product_id'], d['chain_id']))
         row = cur.fetchone()
         
@@ -453,13 +452,13 @@ def api_price_update():
                      VALUES (%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,%s)"""
             cur.execute(sql, (d['product_id'], d['chain_id'], final_price, base_price, pt, pq, pv, promo_label, d['line_id']))
         
-        # 5. 寫入 Log (UTC) - 這筆新的 status 預設是 1 (有效)
+        # 5. 寫入 Log (使用修正後的 is_paid_val)
         cur.execute("""INSERT INTO price_logs 
                        (staff_line_id, product_id, chain_id, new_price, base_price, promo_type, promo_qty, promo_val, promo_label, log_time, is_paid, status) 
                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,CURRENT_TIMESTAMP,%s, 1)""", 
                        (d['line_id'], d['product_id'], d['chain_id'], final_price, base_price, pt, pq, pv, promo_label, is_paid_val))
         
-        # 6. 發放獎金
+        # 6. 發獎金 (寫入 wallet 僅供參考，實際核算以 log 為準)
         if should_pay:
             cur.execute("UPDATE staff SET wallet = wallet + 5 WHERE line_id = %s", (d['line_id'],))
         
@@ -685,16 +684,29 @@ def admin_login():
 
 def is_admin_logged_in():
     return session.get('admin_logged_in', False)
+# ==========================================
+# 👑 後台管理 Dashboard (V2.0: 流量分析 + 抓鬼升級)
+# ==========================================
 @app.route('/admin/dashboard')
 def admin_dashboard():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    conn = get_db(); cur = conn.cursor()
+    
+    conn = get_db()
+    cur = conn.cursor()
     data = {}
     
-    # 1. 基礎數據統計
+    # 接收日期參數 (預設為台灣時間的今天)
+    # 格式: YYYY-MM-DD
+    tz_tw = timezone(timedelta(hours=8))
+    today_str = datetime.now(tz_tw).strftime('%Y-%m-%d')
+    query_date = request.args.get('query_date', today_str)
+    
+    # ----------------------------------
+    # 1. 基礎數據 (維持原樣)
+    # ----------------------------------
     try: 
-        # ✅ FIX: SQLite date() -> Postgres DATE(...)
-        cur.execute("SELECT COUNT(*) FROM search_logs WHERE DATE(log_time + interval '8 hours') = DATE(CURRENT_TIMESTAMP + interval '8 hours')")
+        # 今日搜尋次數 (Total Requests)
+        cur.execute("SELECT COUNT(*) FROM search_logs WHERE DATE(log_time + interval '8 hours') = %s", (today_str,))
         data['today_search'] = cur.fetchone()[0]
     except: data['today_search'] = 0
     
@@ -705,44 +717,80 @@ def admin_dashboard():
     try: cur.execute("SELECT COUNT(*) FROM staff WHERE status = 1"); data['staff_count'] = cur.fetchone()[0]
     except: data['staff_count'] = 0
     
-    # 2. 異常抓鬼 (轉換時間格式)
+    # ----------------------------------
+    # 2. 🔥 新增：搜尋流量分析 (不重複人數 UU)
+    # ----------------------------------
+    user_stats = {}
+    try:
+        # A. 今日活躍人數 (DAU)
+        cur.execute("SELECT COUNT(DISTINCT line_id) FROM search_logs WHERE DATE(log_time + interval '8 hours') = %s", (today_str,))
+        user_stats['dau'] = cur.fetchone()[0]
+        
+        # B. 過去 30 天活躍 (MAU)
+        cur.execute("SELECT COUNT(DISTINCT line_id) FROM search_logs WHERE log_time >= CURRENT_TIMESTAMP - interval '30 days'")
+        user_stats['mau'] = cur.fetchone()[0]
+        
+        # C. 過去 1 年活躍 (YAU)
+        cur.execute("SELECT COUNT(DISTINCT line_id) FROM search_logs WHERE log_time >= CURRENT_TIMESTAMP - interval '1 year'")
+        user_stats['yau'] = cur.fetchone()[0]
+        
+        # D. 總歷史不重複人數 (All Time)
+        cur.execute("SELECT COUNT(DISTINCT line_id) FROM search_logs")
+        user_stats['total'] = cur.fetchone()[0]
+        
+    except Exception as e:
+        print(f"Stats Error: {e}")
+        user_stats = {'dau':0, 'mau':0, 'yau':0, 'total':0}
+
+    # ----------------------------------
+    # 3. 🔥 升級：異常抓鬼 (同一商品單日回報 >= 2次)
+    # ----------------------------------
+    # 邏輯：針對 (Chain + Product) 分組，計算當天有幾筆 Log
+    # STRING_AGG 是 Postgres 專用函數，用來串接人名
     abnormal_query = """
-        SELECT s.name as staff_name, p.name as product_name, c.name as chain_name, COUNT(*) as cnt 
+        SELECT 
+            c.name as chain_name, 
+            p.name as product_name, 
+            COUNT(*) as cnt,
+            STRING_AGG(DISTINCT s.name, ', ') as handlers  -- 列出所有經手人
         FROM price_logs l
         JOIN staff s ON l.staff_line_id = s.line_id
         JOIN products p ON l.product_id = p.id
         JOIN chains c ON l.chain_id = c.id
-        WHERE DATE(l.log_time + interval '8 hours') = DATE(CURRENT_TIMESTAMP + interval '8 hours')
-        GROUP BY l.staff_line_id, l.product_id, s.name, p.name, c.name
+        WHERE DATE(l.log_time + interval '8 hours') = %s
+        GROUP BY l.chain_id, l.product_id, c.name, p.name
         HAVING COUNT(*) >= 2
-        ORDER BY cnt DESC LIMIT 10
+        ORDER BY cnt DESC 
+        LIMIT 20
     """
     try:
-        cur.execute(abnormal_query)
-        # ✅ FIX: 這裡雖然沒有時間欄位要顯示，但保持習慣轉 dict
+        cur.execute(abnormal_query, (query_date,))
         abnormal_list = [dict(r) for r in cur.fetchall()]
     except Exception as e: 
-        print(e)
+        print(f"Abnormal Query Error: {e}")
         abnormal_list = []
 
-    # 3. 最近搜尋 (🔴 這裡是關鍵報錯點！)
+    # ----------------------------------
+    # 4. 最近搜尋流 (維持原樣)
+    # ----------------------------------
     try:
         cur.execute("SELECT keyword, log_time FROM search_logs ORDER BY log_time DESC LIMIT 10")
         raw_searches = cur.fetchall()
         recent_searches = []
         for r in raw_searches:
             d = dict(r)
-            # ✅ FIX: 強制把 datetime 物件轉成字串，讓 HTML 的 .split() 可以運作
-            if d['log_time']:
-                d['log_time'] = str(d['log_time']) 
+            if d['log_time']: d['log_time'] = str(d['log_time']) 
             recent_searches.append(d)
     except: recent_searches = []
 
     conn.close()
-    return render_template('admin/dashboard.html', data=data, abnormal_list=abnormal_list, recent_searches=recent_searches)
-
-#---------戰情勾稽是加強版202621
-
+    
+    return render_template('admin/dashboard.html', 
+                           data=data, 
+                           user_stats=user_stats,     # 傳遞新數據
+                           abnormal_list=abnormal_list, 
+                           recent_searches=recent_searches,
+                           query_date=query_date)     # 傳遞查詢日期回前端
 # ==========================================
 # ⚡ 戰情室 API：取得單一商品歷史紀錄 (給 Modal 用)
 # ==========================================
@@ -841,7 +889,7 @@ def admin_audit_review():
     sql = """
         SELECT 
             l.id, l.staff_line_id, l.chain_id, l.product_id,
-            l.new_price, l.log_time, l.status, l.promo_label,
+            l.new_price, l.log_time, l.status, l.promo_label,l.is_paid,
             s.name as staff_name, 
             c.name as chain_name, 
             p.name as product_name, p.spec, p.material,
@@ -928,47 +976,102 @@ def admin_audit_review():
                            sel_chain=filter_chain, sel_staff=filter_staff)
 
 
+# ==========================================
+# ⚡ 商品價格勾稽室 - 狀態切換 API (V3.0 上帝模式)
+# ==========================================
 @app.route('/admin/audit/toggle', methods=['POST'])
 def admin_audit_toggle():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
+    
     log_id = request.form['log_id']
     date_val = request.form['return_date']
-    conn = get_db(); cur = conn.cursor()
-    # ✅ FIX: ? -> %s
-    cur.execute("SELECT staff_line_id, status FROM price_logs WHERE id = %s", (log_id,))
-    log = cur.fetchone()
-    if log and log['status'] == 1:
-        staff_id = log['staff_line_id']
-        # ✅ FIX: ? -> %s
-        cur.execute("UPDATE staff SET wallet = wallet - 5 WHERE line_id = %s AND wallet >= 5", (staff_id,))
-        cur.execute("UPDATE price_logs SET status = 0 WHERE id = %s", (log_id,))
-        conn.commit()
-        flash('🚫 紀錄已作廢，獎金已回收')
-    conn.close()
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    try:
+        # 1. 先查詢目前狀態
+        cur.execute("SELECT status, is_paid FROM price_logs WHERE id = %s", (log_id,))
+        log = cur.fetchone()
+        
+        if log:
+            current_status = log['status']
+            
+            # 2. 邏輯切換
+            if current_status == 1:
+                # [動作：作廢]
+                # 有效 -> 無效 (status=0)
+                # 獎金 -> 取消 (is_paid=-1)
+                cur.execute("UPDATE price_logs SET status = 0, is_paid = -1 WHERE id = %s", (log_id,))
+                flash('🚫 紀錄已作廢，獎金已取消')
+                
+            else:
+                # [動作：復活]
+                # 無效 -> 有效 (status=1)
+                # 獎金 -> 待核銷 (is_paid=0) 
+                # (注意：復活一律視為「未付」，以免復活了卻沒發錢)
+                cur.execute("UPDATE price_logs SET status = 1, is_paid = 0 WHERE id = %s", (log_id,))
+                flash('✅ 紀錄已復活，獎金列入待核銷')
+                
+            conn.commit()
+            
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ 操作失敗: {str(e)}')
+    finally:
+        conn.close()
+        
     return redirect(url_for('admin_audit_review', query_date=date_val))
 
-# 🔥 員工管理 (V87.1: 三指標 + 核銷邏輯)
+# ==========================================
+# 🔥 員工管理 (V90.1: 補完已核銷數據)
+# ==========================================
 @app.route('/admin/staff')
 def admin_staff():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    conn = get_db(); cur = conn.cursor()
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # 1. 抓取員工基本資料
     cur.execute("SELECT s.*, c.name as chain_name FROM staff s LEFT JOIN chains c ON s.chain_id = c.id ORDER BY s.line_id ASC")
     staff_list = []
+    
     for row in cur.fetchall():
         s = dict(row)
-        # ✅ FIX: ? -> %s
-        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s", (s['line_id'],))
-        s['total_logs'] = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s AND status = 1", (s['line_id'],))
+        line_id = s['line_id']
+        
+        # 2. 🔥 數據計算區 (請確認這裡有這四個指標)
+        
+        # [A] 歷史績效 (所有有效紀錄 status=1)
+        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s AND status = 1", (line_id,))
         s['valid_logs'] = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s AND status = 1 AND COALESCE(is_paid, 0) = 0", (s['line_id'],))
+        
+        # [B] 已核銷筆數 (Status=1 且 IsPaid=1) -> 這是你要新增的！
+        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s AND status = 1 AND is_paid = 1", (line_id,))
+        s['paid_logs'] = cur.fetchone()[0]
+        
+        # [C] 待核銷筆數 (Status=1 且 IsPaid=0)
+        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s AND status = 1 AND COALESCE(is_paid, 0) = 0", (line_id,))
         s['unpaid_logs'] = cur.fetchone()[0]
-        s['calc_wallet'] = s.get('wallet', 0)
+        
+        # [D] 應發獎金 (只算待核銷的)
+        s['calc_wallet'] = s['unpaid_logs'] * 5
+        
+        # 補個防呆
         if s.get('status') is None: s['status'] = 1
+        
+        # 為了相容你的舊 HTML (total_logs)，我們還是算一下總筆數
+        cur.execute("SELECT COUNT(*) FROM price_logs WHERE staff_line_id = %s", (line_id,))
+        s['total_logs'] = cur.fetchone()[0]
+
         staff_list.append(s)
+    
     cur.execute("SELECT * FROM chains WHERE status = 1")
     chains = [dict(r) for r in cur.fetchall()]
-    conn.close(); return render_template('admin/staff.html', staff_list=staff_list, chains=chains)
+    
+    conn.close()
+    return render_template('admin/staff.html', staff_list=staff_list, chains=chains)
 
 @app.route('/admin/staff/add', methods=['POST'])
 def admin_staff_add():
@@ -1036,10 +1139,31 @@ def admin_staff_edit():
 @app.route('/admin/staff/payout', methods=['POST'])
 def admin_staff_payout():
     if not is_admin_logged_in(): return redirect(url_for('admin_login'))
-    conn = get_db(); cur = conn.cursor(); line_id = request.form['line_id']
-    # ✅ FIX: ? -> %s
-    cur.execute("UPDATE price_logs SET is_paid = 1 WHERE staff_line_id = %s AND status = 1 AND COALESCE(is_paid, 0) = 0", (line_id,))
-    cur.execute("UPDATE staff SET wallet = 0 WHERE line_id = %s", (line_id,)); conn.commit(); conn.close(); flash('✅ 核銷完成')
+    
+    conn = get_db()
+    cur = conn.cursor()
+    line_id = request.form['line_id']
+    
+    try:
+        # 1. 🔥 修改處：將該員工所有「待核銷 (is_paid=0)」的有效紀錄，標記為「已核銷 (is_paid=1)」
+        cur.execute("""
+            UPDATE price_logs 
+            SET is_paid = 1 
+            WHERE staff_line_id = %s AND status = 1 AND COALESCE(is_paid, 0) = 0
+        """, (line_id,))
+        
+        # 2. 將員工身上的錢包歸零 (作為同步)
+        cur.execute("UPDATE staff SET wallet = 0 WHERE line_id = %s", (line_id,))
+        
+        conn.commit()
+        flash('✅ 核銷完成，獎金已歸檔')
+        
+    except Exception as e:
+        conn.rollback()
+        flash(f'❌ 核銷失敗: {str(e)}')
+    finally:
+        conn.close()
+        
     return redirect(url_for('admin_staff'))
 
 @app.route('/admin/staff/delete', methods=['POST'])

@@ -1,57 +1,109 @@
 {% extends "admin/base.html" %}
 
 {% block content %}
+<style>
+    /* Admin UI 優化 */
+    .admin-header-card {
+        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        border-left: 5px solid #0d6efd;
+    }
+    .search-group {
+        position: relative;
+        min-width: 250px;
+    }
+    .search-group .bi-search {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #adb5bd;
+    }
+    .admin-search-input {
+        padding-left: 35px;
+        border-radius: 20px;
+        border: 1px solid #ced4da;
+    }
+    .spec-badge {
+        font-size: 0.75rem;
+        background-color: #e9ecef;
+        color: #495057;
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+    }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>📦 商品管理</h2>
-    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addProductModal">
-        <i class="bi bi-plus-lg"></i> 新增商品
+    <div>
+        <h2 class="fw-bold mb-0">📦 商品管理</h2>
+        <small class="text-muted">管理所有上架商品、規格與價格參數</small>
+    </div>
+    <button class="btn btn-success rounded-pill px-4 shadow-sm fw-bold" data-bs-toggle="modal" data-bs-target="#addProductModal">
+        <i class="bi bi-plus-lg me-1"></i> 新增商品
     </button>
 </div>
 
-<div class="card shadow-sm mb-4 border-0 bg-light">
-    <div class="card-body py-2">
-        <div class="d-flex align-items-center mb-2 text-muted small fw-bold">
-            <i class="bi bi-funnel-fill me-2"></i> 快速篩選分類：
-        </div>
-        <div class="d-flex flex-wrap gap-2" id="category-filters">
-            <button class="btn btn-sm btn-dark active" onclick="filterTable('all', this)">全部顯示</button>
-            {% for cat in options['category'] %}
-            <button class="btn btn-sm btn-outline-secondary" onclick="filterTable('{{ cat.name }}', this)">
-                {{ cat.name }}
-            </button>
-            {% endfor %}
+<div class="card shadow-sm mb-4 border-0 admin-header-card">
+    <div class="card-body py-3">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            
+            <div class="d-flex flex-column">
+                <div class="text-muted small fw-bold mb-2">
+                    <i class="bi bi-funnel-fill me-1"></i> 分類篩選：
+                </div>
+                <div class="d-flex flex-wrap gap-2" id="category-filters">
+                    <button class="btn btn-sm btn-dark active rounded-pill px-3" onclick="filterTable('all', this)">全部</button>
+                    {% for cat in options['category'] %}
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3" onclick="filterTable('{{ cat.name }}', this)">
+                        {{ cat.name }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="search-group">
+                <i class="bi bi-search"></i>
+                <input type="text" id="tableSearchInput" class="form-control admin-search-input" 
+                       placeholder="搜尋品名、規格或ID..." onkeyup="performSearch()">
+            </div>
         </div>
     </div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card shadow-sm border-0">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0" id="products-table">
                 <thead class="table-light">
                     <tr>
-                        <th class="ps-4">ID</th>
-                        <th>分類</th>
-                        <th>品名</th>
-                        <th>規格/材質</th>
+                        <th class="ps-4" style="width: 80px;">ID</th>
+                        <th style="width: 120px;">分類</th>
+                        <th>品名 (Name)</th>
+                        <th>規格 / 材質</th>
                         <th>CP值參數</th>
                         <th>狀態</th>
-                        <th class="text-end pe-4">操作</th>
+                        <th class="text-end pe-4" style="width: 150px;">操作</th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="product-tbody">
                     {% for p in products %}
-                    <tr data-category="{{ p.category }}">
-                        <td class="ps-4 text-muted">#{{ p.id }}</td>
-                        <td><span class="badge bg-secondary bg-opacity-10 text-secondary">{{ p.category }}</span></td>
-                        <td class="fw-bold text-dark">{{ p.name }}</td>
-                        <td class="small text-muted">
-                            {{ p.spec }}
-                            {% if p.material %} / {{ p.material }}{% endif %}
+                    <tr class="product-row" 
+                        data-category="{{ p.category }}" 
+                        data-name="{{ p.name }}" 
+                        data-material="{{ p.material or '' }}" 
+                        data-spec="{{ p.spec or '' }}"
+                        data-id="{{ p.id }}">
+                        
+                        <td class="ps-4 text-muted font-monospace">#{{ p.id }}</td>
+                        <td><span class="badge bg-secondary bg-opacity-10 text-secondary border">{{ p.category }}</span></td>
+                        <td class="fw-bold text-dark fs-6">{{ p.name }}</td>
+                        <td>
+                            {% if p.spec %}<span class="spec-badge me-1">{{ p.spec }}</span>{% endif %}
+                            {% if p.material %}<span class="spec-badge text-primary border-primary bg-primary bg-opacity-10">{{ p.material }}</span>{% endif %}
                         </td>
                         <td class="small">
                             {% if p.capacity and p.capacity > 0 %}
-                                <span class="text-primary fw-bold">{{ p.capacity }}</span> 
+                                <span class="text-success fw-bold">{{ p.capacity }}</span> 
                                 <span class="text-muted">{{ p.unit }}</span>
                             {% else %}
                                 <span class="text-warning small"><i class="bi bi-exclamation-circle"></i> 未設定</span>
@@ -59,26 +111,31 @@
                         </td>
                         <td>
                             {% if p.status == 1 %}
-                            <span class="badge bg-success">上架中</span>
+                            <span class="badge bg-success rounded-pill">上架中</span>
                             {% else %}
-                            <span class="badge bg-danger">已下架</span>
+                            <span class="badge bg-danger rounded-pill">已下架</span>
                             {% endif %}
                         </td>
                         <td class="text-end pe-4">
-                            <button class="btn btn-sm btn-outline-primary me-1" 
+                            <button class="btn btn-sm btn-outline-primary me-1 rounded-circle" style="width:32px;height:32px;padding:0;" 
+                                    title="編輯"
                                     onclick="editProduct('{{ p.id }}', '{{ p.name }}', '{{ p.spec }}', '{{ p.material }}', '{{ p.category }}', '{{ p.keywords }}', '{{ p.capacity }}', '{{ p.unit }}')">
                                 <i class="bi bi-pencil"></i>
                             </button>
+                            
                             <form action="/admin/products/toggle" method="POST" class="d-inline">
                                 <input type="hidden" name="product_id" value="{{ p.id }}">
                                 <input type="hidden" name="current_status" value="{{ p.status }}">
-                                <button type="submit" class="btn btn-sm {% if p.status == 1 %}btn-outline-warning{% else %}btn-outline-success{% endif %} me-1" title="切換狀態">
+                                <button type="submit" class="btn btn-sm {% if p.status == 1 %}btn-outline-warning{% else %}btn-outline-success{% endif %} me-1 rounded-circle" 
+                                        style="width:32px;height:32px;padding:0;"
+                                        title="{% if p.status == 1 %}下架{% else %}上架{% endif %}">
                                     <i class="bi {% if p.status == 1 %}bi-eye-slash{% else %}bi-eye{% endif %}"></i>
                                 </button>
                             </form>
+                            
                             <form action="/admin/products/delete" method="POST" class="d-inline" onsubmit="return confirm('⚠️ 確定要永久刪除嗎？\n\n注意：如果該商品有歷史紀錄，可能會導致資料不一致。');">
                                 <input type="hidden" name="product_id" value="{{ p.id }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="永久刪除">
+                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle" style="width:32px;height:32px;padding:0;" title="永久刪除">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>
@@ -87,63 +144,75 @@
                     {% endfor %}
                 </tbody>
             </table>
+            <div id="no-result-msg" class="text-center py-5 text-muted d-none">
+                <i class="bi bi-search display-6 mb-3"></i>
+                <p>找不到符合的商品</p>
+            </div>
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="addProductModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">新增商品</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-plus-circle"></i> 新增商品</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
             <form action="/admin/products/add" method="POST">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label text-primary fw-bold">1. 商品分類 (Category)</label>
-                        <select name="category" class="form-select" required>
-                            <option value="" disabled selected>-- 請選擇 --</option>
-                            {% for cat in options['category'] %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">2. 商品名稱 (Name)</label>
-                        <input type="text" name="name" class="form-control" placeholder="請輸入完整品名" required>
-                    </div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label text-success fw-bold">3. 規格 (Spec)</label>
-                            <select name="spec" class="form-select">
-                                <option value="">-- 無 --</option>
-                                {% for s in options['spec'] %}<option value="{{ s.name }}">{{ s.name }}</option>{% endfor %}
+                <div class="modal-body bg-light">
+                    <div class="card p-3 border-0 shadow-sm">
+                        <div class="mb-3">
+                            <label class="form-label text-primary fw-bold">1. 商品分類</label>
+                            <select name="category" class="form-select" required>
+                                <option value="" disabled selected>-- 請選擇 --</option>
+                                {% for cat in options['category'] %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}
                             </select>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label text-warning fw-bold">4. 材質 (Material)</label>
-                            <select name="material" class="form-select">
-                                <option value="">-- 無 --</option>
-                                {% for m in options['material'] %}<option value="{{ m.name }}">{{ m.name }}</option>{% endfor %}
-                            </select>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">2. 商品名稱</label>
+                            <input type="text" name="name" class="form-control fw-bold" placeholder="請輸入完整品名" required>
                         </div>
-                    </div>
-                    <div class="p-3 bg-light rounded mb-3 border">
-                        <label class="form-label fw-bold text-dark mb-2">CP值計算設定</label>
-                        <div class="row g-2">
-                            <div class="col-8">
-                                <input type="number" name="capacity" class="form-control" placeholder="容量數值 (例: 330)" step="0.1" required>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-success fw-bold">3. 規格</label>
+                                <select name="spec" class="form-select">
+                                    <option value="">-- 無 --</option>
+                                    {% for s in options['spec'] %}<option value="{{ s.name }}">{{ s.name }}</option>{% endfor %}
+                                </select>
                             </div>
-                            <div class="col-4">
-                                <select name="unit" class="form-select" required>
-                                    <option value="" disabled selected>單位</option>
-                                    {% for u in options['unit'] %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}
+                            <div class="col-6">
+                                <label class="form-label text-warning fw-bold">4. 材質</label>
+                                <select name="material" class="form-select">
+                                    <option value="">-- 無 --</option>
+                                    {% for m in options['material'] %}<option value="{{ m.name }}">{{ m.name }}</option>{% endfor %}
                                 </select>
                             </div>
                         </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">搜尋關鍵字 (選填)</label>
-                        <input type="text" name="keywords" class="form-control" placeholder="例: 台啤 生啤">
+                        <div class="p-3 bg-white rounded mb-3 border dashed-border">
+                            <label class="form-label fw-bold text-dark mb-2 small"><i class="bi bi-calculator"></i> CP值計算參數</label>
+                            <div class="row g-2">
+                                <div class="col-8">
+                                    <input type="number" name="capacity" class="form-control" placeholder="容量數值 (例: 330)" step="0.1" required>
+                                </div>
+                                <div class="col-4">
+                                    <select name="unit" class="form-select" required>
+                                        <option value="" disabled selected>單位</option>
+                                        {% for u in options['unit'] %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label small text-muted">搜尋關鍵字 (選填)</label>
+                            <input type="text" name="keywords" class="form-control form-control-sm" placeholder="例: 台啤 生啤">
+                        </div>
                     </div>
                 </div>
-                <div class="modal-footer"><button type="submit" class="btn btn-primary">新增商品</button></div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-success px-4 fw-bold">確認新增</button>
+                </div>
             </form>
         </div>
     </div>
@@ -151,60 +220,140 @@
 
 <div class="modal fade" id="editProductModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">編輯商品</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square"></i> 編輯商品</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
             <form action="/admin/products/edit" method="POST">
                 <input type="hidden" name="product_id" id="edit_id">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label text-primary fw-bold">分類</label>
-                        <select name="category" id="edit_category" class="form-select" required>
-                            {% for cat in options['category'] %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}
-                        </select>
-                    </div>
-                    <div class="mb-3"><label class="form-label fw-bold">商品名稱</label><input type="text" name="name" id="edit_name" class="form-control" required></div>
-                    <div class="row g-2 mb-3">
-                        <div class="col-6">
-                            <label class="form-label text-success fw-bold">規格</label>
-                            <select name="spec" id="edit_spec" class="form-select">
-                                <option value="">-- 無 --</option>
-                                {% for s in options['spec'] %}<option value="{{ s.name }}">{{ s.name }}</option>{% endfor %}
+                <div class="modal-body bg-light">
+                    <div class="card p-3 border-0 shadow-sm">
+                        <div class="mb-3">
+                            <label class="form-label text-primary fw-bold">分類</label>
+                            <select name="category" id="edit_category" class="form-select" required>
+                                {% for cat in options['category'] %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}
                             </select>
                         </div>
-                        <div class="col-6">
-                            <label class="form-label text-warning fw-bold">材質</label>
-                            <select name="material" id="edit_material" class="form-select">
-                                <option value="">-- 無 --</option>
-                                {% for m in options['material'] %}<option value="{{ m.name }}">{{ m.name }}</option>{% endfor %}
-                            </select>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">商品名稱</label>
+                            <input type="text" name="name" id="edit_name" class="form-control fw-bold" required>
                         </div>
-                    </div>
-                    <div class="p-3 bg-light rounded mb-3 border">
-                        <label class="form-label fw-bold text-dark mb-2">CP值設定</label>
-                        <div class="row g-2">
-                            <div class="col-8"><input type="number" name="capacity" id="edit_capacity" class="form-control" step="0.1"></div>
-                            <div class="col-4">
-                                <select name="unit" id="edit_unit" class="form-select">
-                                    {% for u in options['unit'] %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-success fw-bold">規格</label>
+                                <select name="spec" id="edit_spec" class="form-select">
+                                    <option value="">-- 無 --</option>
+                                    {% for s in options['spec'] %}<option value="{{ s.name }}">{{ s.name }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-warning fw-bold">材質</label>
+                                <select name="material" id="edit_material" class="form-select">
+                                    <option value="">-- 無 --</option>
+                                    {% for m in options['material'] %}<option value="{{ m.name }}">{{ m.name }}</option>{% endfor %}
                                 </select>
                             </div>
                         </div>
+                        <div class="p-3 bg-white rounded mb-3 border">
+                            <label class="form-label fw-bold text-dark mb-2 small">CP值設定</label>
+                            <div class="row g-2">
+                                <div class="col-8"><input type="number" name="capacity" id="edit_capacity" class="form-control" step="0.1"></div>
+                                <div class="col-4">
+                                    <select name="unit" id="edit_unit" class="form-select">
+                                        {% for u in options['unit'] %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-0"><label class="form-label small text-muted">關鍵字</label><input type="text" name="keywords" id="edit_keywords" class="form-control form-control-sm"></div>
                     </div>
-                    <div class="mb-3"><label class="form-label">關鍵字</label><input type="text" name="keywords" id="edit_keywords" class="form-control"></div>
                 </div>
-                <div class="modal-footer"><button type="submit" class="btn btn-primary">儲存變更</button></div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">儲存變更</button>
+                </div>
             </form>
         </div>
     </div>
 </div>
 
 <script>
-function filterTable(category, btn) {
+// 🔥 核心排序邏輯：品名 -> 材質 -> 規格
+function sortRows() {
+    const tbody = document.getElementById('product-tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    rows.sort((a, b) => {
+        // 1. 先比對 品名 (中文筆畫/英文順序)
+        const nameA = a.dataset.name || '';
+        const nameB = b.dataset.name || '';
+        const nameCompare = nameA.localeCompare(nameB, 'zh-Hant');
+        if (nameCompare !== 0) return nameCompare;
+
+        // 2. 如果品名一樣，比對 材質 (鋁罐 vs 玻璃)
+        const matA = a.dataset.material || '';
+        const matB = b.dataset.material || '';
+        const matCompare = matA.localeCompare(matB, 'zh-Hant');
+        if (matCompare !== 0) return matCompare;
+
+        // 3. 如果材質也一樣，比對 規格 (嘗試轉成數字比大小)
+        const specA = parseFloat(a.dataset.spec) || 0;
+        const specB = parseFloat(b.dataset.spec) || 0;
+        return specA - specB;
+    });
+
+    // 重新插入排序後的 Rows
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+// 搜尋 + 篩選邏輯
+function performSearch() {
+    const keyword = document.getElementById('tableSearchInput').value.trim().toLowerCase();
+    // 取得當前活躍的分類 (從按鈕狀態判斷)
+    const activeBtn = document.querySelector('#category-filters button.active');
+    const activeCategory = activeBtn ? activeBtn.textContent.trim() : '全部顯示'; // 修正按鈕文字對應
+    
+    // 呼叫主過濾器，傳入現在的分類，讓搜尋框也能在分類下運作
+    // 注意：這裡我們簡化邏輯，讓 filterTable 負責所有顯示隱藏
+    filterTable(activeCategory === '全部' || activeCategory === '全部顯示' ? 'all' : activeCategory, activeBtn, true);
+}
+
+function filterTable(category, btn, isFromSearch = false) {
+    const keyword = document.getElementById('tableSearchInput').value.trim().toLowerCase();
     const rows = document.querySelectorAll('#products-table tbody tr');
-    localStorage.setItem('admin_product_filter', category);
-    document.querySelectorAll('#category-filters button').forEach(b => { b.classList.remove('btn-dark', 'active'); b.classList.add('btn-outline-secondary'); });
-    if(btn) { btn.classList.remove('btn-outline-secondary'); btn.classList.add('btn-dark', 'active'); }
-    rows.forEach(row => { row.style.display = (category === 'all' || row.dataset.category === category) ? '' : 'none'; });
+    let hasResult = false;
+
+    // 更新按鈕樣式 (如果是搜尋觸發的，不改變按鈕狀態)
+    if (!isFromSearch && btn) {
+        localStorage.setItem('admin_product_filter', category);
+        document.querySelectorAll('#category-filters button').forEach(b => { 
+            b.classList.remove('btn-dark', 'active'); 
+            b.classList.add('btn-outline-secondary'); 
+        });
+        btn.classList.remove('btn-outline-secondary'); 
+        btn.classList.add('btn-dark', 'active');
+    }
+
+    rows.forEach(row => { 
+        // 1. 檢查分類
+        const matchCat = (category === 'all' || row.dataset.category === category);
+        
+        // 2. 檢查搜尋關鍵字 (搜尋 ID, 品名, 規格, 材質)
+        const content = (row.dataset.id + row.dataset.name + row.dataset.spec + row.dataset.material).toLowerCase();
+        const matchKey = !keyword || content.includes(keyword);
+
+        if (matchCat && matchKey) {
+            row.style.display = '';
+            hasResult = true;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    // 顯示/隱藏 無結果提示
+    const msg = document.getElementById('no-result-msg');
+    if (msg) msg.classList.toggle('d-none', hasResult);
 }
 
 function editProduct(id, name, spec, material, category, keywords, capacity, unit) {
@@ -213,19 +362,22 @@ function editProduct(id, name, spec, material, category, keywords, capacity, uni
     document.getElementById('edit_category').value = category;
     document.getElementById('edit_keywords').value = (keywords && keywords!='None') ? keywords : '';
     document.getElementById('edit_capacity').value = (capacity && capacity!='None') ? capacity : 0;
-    
-    // 下拉選單賦值 (如果資料庫裡的值不在選項中，Select會變成空白，這是正常的防呆表現)
     document.getElementById('edit_spec').value = (spec && spec!='None') ? spec : '';
     document.getElementById('edit_material').value = (material && material!='None') ? material : '';
     document.getElementById('edit_unit').value = (unit && unit!='None') ? unit : '';
-    
     new bootstrap.Modal(document.getElementById('editProductModal')).show();
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+    // 1. 自動排序 (這是重點!)
+    sortRows();
+
+    // 2. 恢復上次的分類篩選
     const saved = localStorage.getItem('admin_product_filter');
     if(saved) {
-        const btn = Array.from(document.querySelectorAll('#category-filters button')).find(b => b.textContent.trim() === saved);
+        // 模糊比對按鈕文字 (因為有時候可能有空格)
+        const btns = Array.from(document.querySelectorAll('#category-filters button'));
+        const btn = btns.find(b => b.textContent.trim() === saved) || btns[0];
         filterTable(saved, btn);
     }
 });

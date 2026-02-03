@@ -3,88 +3,50 @@
 {% block content %}
 
 <style>
-    :root {
-        --primary-bg: #f8f9fc;
-        --card-border: #e3e6f0;
-        --text-dark: #3a3b45;
-        --text-muted: #858796;
-    }
-    
+    :root { --primary-bg: #f8f9fc; --card-border: #e3e6f0; --text-dark: #3a3b45; --text-muted: #858796; }
     body { background-color: var(--primary-bg); font-family: 'Nunito', system-ui, sans-serif; }
 
     /* 頂部標題區 */
-    .page-header {
-        background: white; padding: 20px 25px; border-radius: 15px;
-        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.05);
-        margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;
-    }
+    .page-header { background: white; padding: 20px 25px; border-radius: 15px; box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.05); margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
 
     /* 數據表格卡片 */
-    .dashboard-card {
-        background: white; border: none; border-radius: 15px;
-        box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.08);
-        overflow: hidden;
-    }
+    .dashboard-card { background: white; border: none; border-radius: 15px; box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.08); overflow: hidden; }
 
     /* 表格樣式優化 */
-    .table thead th {
-        background-color: #f8f9fc; color: #4e73df; font-weight: 700;
-        text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em;
-        border-bottom: 2px solid #e3e6f0; padding: 15px;
-    }
+    .table thead th { background-color: #f8f9fc; color: #4e73df; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; border-bottom: 2px solid #e3e6f0; padding: 15px; vertical-align: middle;}
     .table tbody td { padding: 15px; vertical-align: middle; color: #5a5c69; }
     .table-hover tbody tr:hover { background-color: #f8f9fc; transition: 0.2s; }
 
-    /* 虛擬頭像 */
-    .avatar-circle {
-        width: 40px; height: 40px; background-color: #4e73df; color: white;
-        border-radius: 50%; display: flex; align-items: center; justify-content: center;
-        font-weight: bold; font-size: 1.1rem; margin-right: 12px;
-        position: relative;
-    }
-    .status-dot {
-        width: 12px; height: 12px; border-radius: 50%; border: 2px solid white;
-        position: absolute; bottom: 0; right: 0;
-    }
+    /* 🔥 欄位寬度設定 */
+    .col-fixed-100 { width: 110px; text-align: center; } /* 給核銷用 */
+    .col-history { min-width: 160px; text-align: center; } /* 給歷史績效用，稍微寬一點 */
 
-    /* 數據膠囊 */
-    .data-pill {
-        display: inline-flex; flex-direction: column; align-items: center;
-        padding: 5px 10px; border-radius: 8px; background: #f8f9fc; min-width: 70px;
+    /* 虛擬頭像 */
+    .avatar-circle { width: 40px; height: 40px; background-color: #4e73df; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1rem; margin-right: 12px; position: relative; }
+    .status-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; position: absolute; bottom: 0; right: 0; }
+
+    /* 數據膠囊 (通用) */
+    .data-pill { 
+        display: inline-flex; flex-direction: column; align-items: center; justify-content: center; 
+        padding: 5px 0; border-radius: 8px; background: #f8f9fc; 
+        width: 100%; min-width: 60px;
     }
     .data-pill .label { font-size: 0.65rem; color: #a0a0a0; text-transform: uppercase; margin-bottom: 2px; }
     .data-pill .value { font-weight: 800; font-size: 1rem; color: #5a5c69; }
 
-    /* 待核銷強調 */
-    .unpaid-box {
-        background: #fff3cd; color: #856404; border: 1px solid #ffeeba;
-        border-radius: 10px; padding: 5px 15px; text-align: center; display: inline-block;
-    }
+    /* 待核銷強調 (深黃色) */
+    .unpaid-pill { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+    .unpaid-pill .label { color: #856404; opacity: 0.7; }
+    .unpaid-pill .value { color: #856404; }
     
     /* 錢包金額 */
     .wallet-amount { font-family: 'Consolas', monospace; font-weight: 700; font-size: 1.2rem; }
-    .text-money { color: #1cc88a; }
+    .text-money { color: #e74a3b; }
 
-    /* 🔥 操作按鈕群 (修正對齊問題) */
-    .action-btn-group {
-        display: flex;
-        align-items: center;
-        justify-content: flex-end;
-        gap: 5px; /* 按鈕間距 */
-    }
-    .action-btn-group .btn {
-        border-radius: 50px; 
-        width: 32px; height: 32px; /* 固定寬高 */
-        padding: 0; /* 清除 padding */
-        display: inline-flex; /* 彈性盒子 */
-        align-items: center; /* 垂直置中 */
-        justify-content: center; /* 水平置中 */
-        font-size: 0.9rem;
-    }
-    /* 讓核銷按鈕寬一點，因為有文字 */
-    .action-btn-group .btn-payout {
-        width: auto; padding: 0 12px; height: 32px;
-    }
+    /* 操作按鈕群 */
+    .action-btn-group { display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+    .action-btn-group .btn { border-radius: 50px; width: 32px; height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+    .action-btn-group .btn-payout { width: auto; padding: 0 12px; height: 32px; }
 </style>
 
 <div class="page-header">
@@ -109,8 +71,13 @@
                 <tr>
                     <th class="ps-4">員工資訊</th>
                     <th>所屬單位</th>
-                    <th class="text-center">歷史績效</th>
-                    <th class="text-center">待核銷 (筆數)</th>
+                    
+                    <th class="col-history">歷史績效 (總/有效)</th>
+                    
+                    <th class="col-fixed-100">已核銷</th>
+                    
+                    <th class="col-fixed-100">待核銷</th>
+                    
                     <th class="text-end">應發獎金</th>
                     <th class="text-end pe-4">管理操作</th>
                 </tr>
@@ -158,13 +125,20 @@
                     </td>
 
                     <td class="text-center">
+                        <div class="data-pill" style="background-color: #e8f5e9;">
+                            <span class="label text-success">已結清</span>
+                            <span class="value text-success fw-bold">{{ s.paid_logs }}</span>
+                        </div>
+                    </td>
+
+                    <td class="text-center">
                         {% if s.unpaid_logs > 0 %}
-                            <div class="unpaid-box shadow-sm">
-                                <i class="bi bi-exclamation-circle-fill me-1"></i>
-                                <strong>{{ s.unpaid_logs }}</strong> 筆
+                            <div class="data-pill unpaid-pill shadow-sm">
+                                <span class="label">待處理</span>
+                                <span class="value">{{ s.unpaid_logs }}</span>
                             </div>
                         {% else %}
-                            <span class="text-muted opacity-50"><i class="bi bi-check-circle"></i> 已結清</span>
+                            <span class="text-muted opacity-50 small"><i class="bi bi-check-circle-fill"></i> 無</span>
                         {% endif %}
                     </td>
 
@@ -180,7 +154,7 @@
                         <div class="action-btn-group">
                             <button class="btn btn-outline-secondary" 
                                     onclick="editStaff('{{ s.line_id }}', '{{ s.name }}', '{{ s.level }}', '{{ s.chain_id }}', '{{ s.status }}')"
-                                    title="編輯與停權">
+                                    title="編輯">
                                 <i class="bi bi-pencil-fill"></i>
                             </button>
                             
@@ -199,9 +173,9 @@
                             {% endif %}
                             
                             <form action="/admin/staff/delete" method="POST" class="d-inline" 
-                                  onsubmit="return confirm('⚠️ 危險操作！\n\n確定要刪除員工 [ {{ s.name }} ] 嗎？\n此操作無法復原！');">
+                                  onsubmit="return confirm('⚠️ 確定刪除此員工嗎？');">
                                 <input type="hidden" name="line_id" value="{{ s.line_id }}">
-                                <button type="submit" class="btn btn-outline-danger border-0" title="刪除員工">
+                                <button type="submit" class="btn btn-outline-danger border-0" title="刪除">
                                     <i class="bi bi-trash"></i>
                                 </button>
                             </form>
@@ -212,7 +186,7 @@
                 
                 {% if not staff_list %}
                 <tr>
-                    <td colspan="6" class="text-center py-5 text-muted">
+                    <td colspan="7" class="text-center py-5 text-muted">
                         <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" width="64" class="mb-3 opacity-50">
                         <p>目前沒有員工資料</p>
                     </td>
@@ -336,11 +310,8 @@
 
 <script>
     function editStaff(lid, name, lvl, cid, status) {
-        // 填入舊 ID (隱藏欄位)
         document.getElementById('edit_original_line_id').value = lid;
-        // 填入新 ID (顯示欄位，預設等於舊 ID)
         document.getElementById('edit_new_line_id').value = lid; 
-        
         document.getElementById('edit_name').value = name;
         document.getElementById('edit_level').value = lvl;
         document.getElementById('edit_chain_id').value = (cid && cid != 'None') ? cid : -1;
