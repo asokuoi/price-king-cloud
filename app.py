@@ -281,26 +281,40 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"搜尋 {msg}", contents=flex_msg))
 
 # ==========================================
-# ⚡ 前端盤點 API
+# ⚡ 前端盤點 API (V5.0 資料補強版)
 # ==========================================
 @app.route('/audit')
 def audit_page():
     conn = get_db(); cur = conn.cursor()
+    
+    # 1. 取得通路清單
     cur.execute("SELECT * FROM chains WHERE status = 1")
     chains = [dict(r) for r in cur.fetchall()]
-# 🔥 修改重點：加入 material，且排序改為：分類 -> 檔名(品牌) -> ID
+    
+    # 2. 取得商品清單 (包含規格 spec 和 材質 material)
     cur.execute("SELECT id, name, category, spec, material FROM products WHERE status = 1 ORDER BY category, name, id")
     products = [dict(r) for r in cur.fetchall()]
     
-    cur.execute("SELECT chain_id, product_id, price, base_price, promo_label FROM prices")
+    # 3. 取得價格表 (🔥 V5.0 修正：補齊 promo_type, promo_qty, promo_val)
+    cur.execute("""
+        SELECT chain_id, product_id, price, base_price, promo_label, 
+               promo_type, promo_qty, promo_val 
+        FROM prices
+    """)
+    
     price_map = {}
     for r in cur.fetchall():
         key = f"{r['chain_id']}-{r['product_id']}"
         price_map[key] = {
             'price': int(r['price']),
             'base_price': int(r['base_price']),
-            'label': r['promo_label']
+            'label': r['promo_label'],
+            # 👇 新增這些欄位供前端 Pre-fill 使用
+            'type': r['promo_type'] or 1,
+            'qty': r['promo_qty'] or 1,
+            'val': float(r['promo_val']) if r['promo_val'] else 0
         }
+    
     conn.close()
     return render_template('audit.html', chains=chains, products=products, price_map=price_map, liff_id=config.LIFF_ID)
 
