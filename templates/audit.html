@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>價格王 員工盤點 V5.1</title>
+    <title>價格王 員工盤點 V5.2</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -49,14 +49,41 @@
 
         #main-content { margin-top: 160px; }
 
-        /* 商品卡片 (V5.1 update: Pink Border) */
+        /* 商品卡片 (基本樣式) */
         .product-card { 
             background: #fff; border-radius: 12px; margin-bottom: 12px; 
-            /* 🔥 修正：與 Search 一致的粉色框 */
-            border: 2.5px solid #ffb3c1; 
+            border: 2.5px solid #ffb3c1; /* 預設粉色框 (未盤點) */
             box-shadow: 0 4px 8px rgba(0,0,0,0.03);
             padding: 15px; position: relative;
+            transition: all 0.2s ease;
         }
+
+        /* 🔥 已盤點樣式 (綠色) */
+        .product-card.audited {
+            border: 2.5px solid #198754 !important; /* 綠色邊框 */
+            background-color: #f0fdf4 !important;    /* 淺綠背景 */
+        }
+
+        /* 🔥 右上角綠色勾勾 */
+        .audited-badge {
+            position: absolute; top: -10px; right: -10px;
+            background-color: #198754; color: white;
+            border-radius: 50%; width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; z-index: 10;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+            border: 2px solid white;
+        }
+
+        /* 🔥 右下角經手人標籤 */
+        .audited-by-tag {
+            position: absolute; bottom: 10px; right: 10px;
+            background-color: rgba(25, 135, 84, 0.1);
+            color: #198754;
+            font-size: 0.7rem; font-weight: 700;
+            padding: 2px 8px; border-radius: 6px;
+        }
+
         .p-name { font-weight: 900; font-size: 1.05rem; color: #000; margin-bottom: 4px; }
         .p-meta { font-size: 0.85rem; color: #6c757d; font-weight: 500; }
         .p-spec-tag { background: #f8f9fa; padding: 2px 6px; border-radius: 4px; border: 1px solid #dee2e6; margin-right: 4px; font-size: 0.75rem;}
@@ -208,6 +235,8 @@
         const products = {{ products | tojson }};
         const chains = {{ chains | tojson }};
         const priceMap = {{ price_map | tojson }}; 
+        // 🔥 接收後端傳來的今日盤點紀錄 (包含 staff_name)
+        const rawAuditLogs = {{ audit_logs | tojson }} || [];
 
         let userLineId = "";
         let currentChainId = -1;
@@ -257,6 +286,8 @@
                     }
                     initCategoryFilter();
                     filterProducts(); 
+                    // 🔥 登入成功後，立刻標記已盤點
+                    markAuditedProducts();
                 } else {
                     showAuthError(data.status, uid);
                 }
@@ -283,6 +314,52 @@
             btn.classList.add('active');
             filterProducts();
             window.scrollTo(0, 0);
+        }
+
+        // 🔥 標記已盤點商品的函式 (團隊協作版)
+        function markAuditedProducts() {
+            if (currentChainId < 0) return;
+
+            // 1. 整理這家店的盤點紀錄 { product_id: staff_name }
+            const storeLogs = {};
+            rawAuditLogs.forEach(log => {
+                if (log.chain_id == currentChainId) {
+                    storeLogs[log.product_id] = log.staff_name;
+                }
+            });
+
+            // 2. 遍歷畫面卡片
+            document.querySelectorAll('.product-card').forEach(card => {
+                const prodId = parseInt(card.dataset.id);
+                
+                // 清除舊狀態
+                card.classList.remove('audited');
+                const oldBadge = card.querySelector('.audited-badge');
+                if(oldBadge) oldBadge.remove();
+                const oldTag = card.querySelector('.audited-by-tag');
+                if(oldTag) oldTag.remove();
+
+                // 3. 有紀錄就變色
+                if (storeLogs.hasOwnProperty(prodId)) {
+                    card.classList.add('audited');
+                    
+                    // 打勾勾
+                    const badge = document.createElement('div');
+                    badge.className = 'audited-badge';
+                    badge.innerHTML = '<i class="bi bi-check-lg"></i>';
+                    card.appendChild(badge);
+
+                    // 顯示是誰盤的
+                    const staffName = storeLogs[prodId];
+                    // 判斷是不是我自己 (如果有 userLineId 且 Log 裡有我的記錄)
+                    const isMe = rawAuditLogs.some(l => l.product_id == prodId && l.chain_id == currentChainId && l.staff_line_id == userLineId);
+                    
+                    const tag = document.createElement('div');
+                    tag.className = 'audited-by-tag';
+                    tag.innerHTML = isMe ? '✅ 已完成' : `👤 ${staffName}`;
+                    card.appendChild(tag);
+                }
+            });
         }
 
         function filterProducts() {
@@ -315,6 +392,8 @@
 
                 const div = document.createElement('div');
                 div.className = "product-card";
+                // 🔥 必須加上 data-id 供標記函式使用
+                div.dataset.id = p.id;
                 div.onclick = (e) => openModal(p.id, p.name, p.spec, p.material);
                 
                 div.innerHTML = `
@@ -332,6 +411,9 @@
                 `;
                 container.appendChild(div);
             });
+
+            // 🔥 渲染完立刻標記顏色
+            markAuditedProducts();
         }
 
         function openModal(pid, name, spec, mat) {
@@ -474,6 +556,7 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
+                    // 更新本地價格表
                     const pid = document.getElementById('form_product_id').value;
                     const key = `${currentChainId}-${pid}`;
                     priceMap[key] = { 
@@ -484,7 +567,18 @@
                         qty: parseFloat(newQty),
                         val: parseFloat(newVal)
                     };
+                    
+                    // 🔥 更新本地 Audit Log (假裝後端已紀錄，讓畫面即時變綠)
+                    rawAuditLogs.push({
+                        chain_id: parseInt(currentChainId),
+                        product_id: parseInt(pid),
+                        staff_line_id: userLineId,
+                        staff_name: document.getElementById('staff-name').textContent
+                    });
+
+                    // 重新渲染並標記
                     filterProducts(); 
+                    
                     closeModal();
                     const w = document.getElementById('wallet-amt');
                     if(w) w.textContent = parseInt(w.textContent) + 5;

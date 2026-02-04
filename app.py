@@ -281,43 +281,76 @@ def handle_message(event):
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"搜尋 {msg}", contents=flex_msg))
 
 # ==========================================
-# ⚡ 前端盤點 API (V5.0 資料補強版)
+# ⚡ 前端盤點 API (V5.2 修正版: 完整定義 cur)
 # ==========================================
 @app.route('/audit')
 def audit_page():
-    conn = get_db(); cur = conn.cursor()
+    # 1. 🔥 建立資料庫連線 (這行一定要在最前面！)
+    conn = get_db()
+    cur = conn.cursor()
     
-    # 1. 取得通路清單
-    cur.execute("SELECT * FROM chains WHERE status = 1")
-    chains = [dict(r) for r in cur.fetchall()]
-    
-    # 2. 取得商品清單 (包含規格 spec 和 材質 material)
-    cur.execute("SELECT id, name, category, spec, material FROM products WHERE status = 1 ORDER BY category, name, id")
-    products = [dict(r) for r in cur.fetchall()]
-    
-    # 3. 取得價格表 (🔥 V5.0 修正：補齊 promo_type, promo_qty, promo_val)
-    cur.execute("""
-        SELECT chain_id, product_id, price, base_price, promo_label, 
-               promo_type, promo_qty, promo_val 
-        FROM prices
-    """)
-    
-    price_map = {}
-    for r in cur.fetchall():
-        key = f"{r['chain_id']}-{r['product_id']}"
-        price_map[key] = {
-            'price': int(r['price']),
-            'base_price': int(r['base_price']),
-            'label': r['promo_label'],
-            # 👇 新增這些欄位供前端 Pre-fill 使用
-            'type': r['promo_type'] or 1,
-            'qty': r['promo_qty'] or 1,
-            'val': float(r['promo_val']) if r['promo_val'] else 0
-        }
-    
-    conn.close()
-    return render_template('audit.html', chains=chains, products=products, price_map=price_map, liff_id=config.LIFF_ID)
+    try:
+        # 2. 取得通路清單
+        cur.execute("SELECT * FROM chains WHERE status = 1")
+        chains = [dict(r) for r in cur.fetchall()]
+        
+        # 3. 取得商品清單 (包含規格 spec 和 材質 material)
+        cur.execute("SELECT id, name, category, spec, material FROM products WHERE status = 1 ORDER BY category, name, id")
+        products = [dict(r) for r in cur.fetchall()]
+        
+        # 4. 取得價格表
+        cur.execute("""
+            SELECT chain_id, product_id, price, base_price, promo_label, 
+                   promo_type, promo_qty, promo_val 
+            FROM prices
+        """)
+        
+        price_map = {}
+        for r in cur.fetchall():
+            key = f"{r['chain_id']}-{r['product_id']}"
+            price_map[key] = {
+                'price': int(r['price']),
+                'base_price': int(r['base_price']),
+                'label': r['promo_label'],
+                'type': r['promo_type'] or 1,
+                'qty': r['promo_qty'] or 1,
+                'val': float(r['promo_val']) if r['promo_val'] else 0
+            }
 
+        # 5. 🔥 取得今日盤點紀錄 (團隊同步邏輯)
+        # 這裡需要用到 timezone, timedelta, datetime (記得檔頭要引用)
+        tz_tw = timezone(timedelta(hours=8))
+        today_str = datetime.now(tz_tw).strftime('%Y-%m-%d')
+        
+        cur.execute("""
+            SELECT l.chain_id, l.product_id, l.staff_line_id, s.name as staff_name
+            FROM price_logs l
+            LEFT JOIN staff s ON l.staff_line_id = s.line_id
+            WHERE DATE(l.log_time + interval '8 hours') = %s AND l.status = 1
+        """, (today_str,))
+        
+        # 這裡會回傳今天所有有效的盤點紀錄，包含是誰盤的
+        raw_audit_logs = [dict(r) for r in cur.fetchall()]
+
+    except Exception as e:
+        print(f"❌ Audit Page Error: {e}")
+        # 萬一出錯，給空資料避免網頁掛掉
+        chains = []
+        products = []
+        price_map = {}
+        raw_audit_logs = []
+    
+    finally:
+        # 6. 關閉連線 (這也很重要)
+        conn.close()
+    
+    # 7. 回傳給前端
+    return render_template('audit.html', 
+                           chains=chains, 
+                           products=products, 
+                           price_map=price_map, 
+                           liff_id=config.LIFF_ID, 
+                           audit_logs=raw_audit_logs)
 # ==========================================
 # 👤 員工身分驗證 API (V5.0 防呆修正版)
 # ==========================================

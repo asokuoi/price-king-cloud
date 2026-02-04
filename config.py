@@ -10,7 +10,7 @@ STAFF_SECRET = 'd066f03908b9786f1f9f85eaf918dffd'
 USER_ACCESS_TOKEN = '8V8RgT1ww0BtDEkAdIkRUm3CqDPahofze5/5I378+vh2/uGeYQgTyCrDKinfnH+qPrOhRce9d0+XxfR/UxVBKRw3bK5UYcacRsMVjxBVi1PRDJ9U07v8lNYtfEn0dDJ+jzUwX7zA33z2UKT1BYFqFQdB04t89/1O/w1cDnyilFU='
 USER_SECRET = '403d119e2d4ee07d3ad5f55c8575cc6a'
 
-LIFF_ID = "2008961957-syHZOhMX" 
+LIFF_ID = "2008961957-FxEVP4Fu" 
 # ==========================================
 
 # 資料庫設定 (優先讀取 Render 環境變數，沒有則用本機 SQLite)
