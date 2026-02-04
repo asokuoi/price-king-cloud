@@ -1,31 +1,38 @@
-# config.py - 專門存放設定與密鑰
+#---------------------------------------------------------------------------
+# config.py - 設定與密鑰管理
 import os
 
 # ==========================================
-# ⚠️ 請在此填入您的 4 組 LINE 密鑰 & LIFF ID
+# 1. 判斷環境：Render 會有一個特殊的環境變數 'RENDER'
 # ==========================================
-STAFF_ACCESS_TOKEN = '8LdQ3zFggLWa26+NNuLQQxjoiuASEemW/uHtJ9tfP0aDDD4w+NyezV3y4+HTn37P1NBLB2W/dxXJ4uoU3oOsZDSlx31/NJIF6Ql5bESu5R3I0GrXlplW9TNWJP1tnbqL0MRTn9+3TytfTESusr+xUgdB04t89/1O/w1cDnyilFU='
-STAFF_SECRET = 'd066f03908b9786f1f9f85eaf918dffd'
+IS_ON_RENDER = os.environ.get('RENDER')
 
-USER_ACCESS_TOKEN = '8V8RgT1ww0BtDEkAdIkRUm3CqDPahofze5/5I378+vh2/uGeYQgTyCrDKinfnH+qPrOhRce9d0+XxfR/UxVBKRw3bK5UYcacRsMVjxBVi1PRDJ9U07v8lNYtfEn0dDJ+jzUwX7zA33z2UKT1BYFqFQdB04t89/1O/w1cDnyilFU='
-USER_SECRET = '403d119e2d4ee07d3ad5f55c8575cc6a'
-
-LIFF_ID = "2008961957-FxEVP4Fu" 
 # ==========================================
+# 2. 設定 LINE Bot 密鑰 (雙胞胎機制)
+# ==========================================
+if IS_ON_RENDER:
+    # --- 【環境 A：Render 正式站】(填入正式機器人的 ID) ---
+    print("🚀 偵測到 Render 環境：載入 [正式] 機器人設定")
+    # 這些數值請去 Render 後台 Environment Variables 設定，或者直接填在這裡(不建議)
+    # 建議在 Render 後台設定 LINE_CHANNEL_ACCESS_TOKEN 與 LINE_CHANNEL_SECRET
+    LINE_CHANNEL_ACCESS_TOKEN = os.environ.get('LINE_CHANNEL_ACCESS_TOKEN', '8LdQ3zFggLWa26+NNuLQQxjoiuASEemW/uHtJ9tfP0aDDD4w+NyezV3y4+HTn37P1NBLB2W/dxXJ4uoU3oOsZDSlx31/NJIF6Ql5bESu5R3I0GrXlplW9TNWJP1tnbqL0MRTn9+3TytfTESusr+xUgdB04t89/1O/w1cDnyilFU=')
+    LINE_CHANNEL_SECRET = os.environ.get('LINE_CHANNEL_SECRET', 'd066f03908b9786f1f9f85eaf918dffd')
+    LIFF_ID = "2008961957-FxEVP4Fu"  # 正式站用的 LIFF (對應 Render 網址)
 
-# 資料庫設定 (優先讀取 Render 環境變數，沒有則用本機 SQLite)
-DATABASE_URL = os.environ.get('DATABASE_URL')
+else:
+    # --- 【環境 B：Local Ngrok 測試站】(填入測試機器人的 ID) ---
+    print("💻 偵測到 Local 環境：載入 [測試] 機器人設定")
+    # 這裡填入你申請給 Ngrok 測試用的那個機器人
+    LINE_CHANNEL_ACCESS_TOKEN = 'kpSVG/nuoAKcahrAQfTFWOOpkosUBpXABRYhO4dfLX2MnFAK7SC/8dztUS1fN5njLSD4HfZ/hoJL28iMnoDxMomOJ6gH73xxXosF8pEGjJXuTO6S16yEosXP32Xu2zGVU//1/44FIEmnCbugIChEnQdB04t89/1O/w1cDnyilFU='
+    LINE_CHANNEL_SECRET = '98ed66be9b4c6febb2e51f5a6951007a'
+    LIFF_ID = "2009033601-39V51vkB" # 測試用的 LIFF (對應 Ngrok 網址)
+
+# ==========================================
+# 3. 資料庫連線 (核心：共用 Render 資料庫)
+# ==========================================
+# 本機端：請在你的電腦設定環境變數 DATABASE_URL，值為 Render 的 "External Database URL"
+# Render端：它會自動帶入 Internal Database URL
+DATABASE_URL = os.environ.get('postgresql://price_king_user:Xt9yvF6vU1sbWjv1DJEaJpwkX6KwPIQa@dpg-d5tgfs8gjchc73f9fa00-a/price_king')
 
 # Flask Session 密鑰
-SECRET_KEY = 'SUPER_SECRET_KEY_FOR_SESSION'
-
-#---------------------------
-# config.py
-
-# Flask 加密金鑰 (隨便打一串亂碼即可)
-SECRET_KEY = 'your_super_secret_random_key_here'
-
-# LINE Bot 設定 (請填入您 LINE Developers 的真實資料)
-LINE_CHANNEL_ACCESS_TOKEN = '8LdQ3zFggLWa26+NNuLQQxjoiuASEemW/uHtJ9tfP0aDDD4w+NyezV3y4+HTn37P1NBLB2W/dxXJ4uoU3oOsZDSlx31/NJIF6Ql5bESu5R3I0GrXlplW9TNWJP1tnbqL0MRTn9+3TytfTESusr+xUgdB04t89/1O/w1cDnyilFU='
-LINE_CHANNEL_SECRET = 'd066f03908b9786f1f9f85eaf918dffd'
-
+SECRET_KEY = os.environ.get('SECRET_KEY', 'PriceKing_Secret_Key_888')
