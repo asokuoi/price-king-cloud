@@ -23,9 +23,9 @@ else:
     # --- 【環境 B：Local Ngrok 測試站】(填入測試機器人的 ID) ---
     print("💻 偵測到 Local 環境：載入 [測試] 機器人設定")
     # 這裡填入你申請給 Ngrok 測試用的那個機器人
-    LINE_CHANNEL_ACCESS_TOKEN = 'kpSVG/nuoAKcahrAQfTFWOOpkosUBpXABRYhO4dfLX2MnFAK7SC/8dztUS1fN5njLSD4HfZ/hoJL28iMnoDxMomOJ6gH73xxXosF8pEGjJXuTO6S16yEosXP32Xu2zGVU//1/44FIEmnCbugIChEnQdB04t89/1O/w1cDnyilFU='
-    LINE_CHANNEL_SECRET = '98ed66be9b4c6febb2e51f5a6951007a'
-    LIFF_ID = "2009033601-39V51vkB" # 測試用的 LIFF (對應 Ngrok 網址)
+    LINE_CHANNEL_ACCESS_TOKEN = '1UGy9WCsIAxMGS7tdLOLWzaZzS4Fi6B/rISbLo2cRWbm7Wxe62JhvOGk3+xBsCDqML7plKo5UEvCiciVGiHwj2aDgA7CbYWluhbHKm9ADiP2G4Zo3+kQVlYoNsLRGZiO21DJQiAJVaPv43EZWCoguQdB04t89/1O/w1cDnyilFU='
+    LINE_CHANNEL_SECRET = 'cbe7c02fa8c61af0ad0d2d305d9ce130'
+    LIFF_ID = "2009052171-mo62XjK0" # 測試用的 LIFF (對應 Ngrok 網址)
 
 # ==========================================
 # 3. 資料庫連線 (核心：共用 Render 資料庫)

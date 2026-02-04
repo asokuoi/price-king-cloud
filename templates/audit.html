@@ -54,7 +54,10 @@
             background: #fff; border-radius: 12px; margin-bottom: 12px; 
             border: 2.5px solid #ffb3c1; /* 預設粉色框 (未盤點) */
             box-shadow: 0 4px 8px rgba(0,0,0,0.03);
-            padding: 15px; position: relative;
+            padding: 15px; 
+            position: relative;
+            /* 🔥 允許右上角標籤凸出去 */
+            overflow: visible !important; 
             transition: all 0.2s ease;
         }
 
@@ -64,9 +67,10 @@
             background-color: #f0fdf4 !important;    /* 淺綠背景 */
         }
 
-        /* 🔥 右上角綠色勾勾 */
+        /* 🔥 右上角綠色勾勾 (浮在最右上角) */
         .audited-badge {
-            position: absolute; top: -10px; right: -10px;
+            position: absolute; 
+            top: -10px; right: -10px;
             background-color: #198754; color: white;
             border-radius: 50%; width: 28px; height: 28px;
             display: flex; align-items: center; justify-content: center;
@@ -75,13 +79,19 @@
             border: 2px solid white;
         }
 
-        /* 🔥 右下角經手人標籤 */
+        /* 🔥 右上角經手人標籤 (浮在勾勾左邊) */
         .audited-by-tag {
-            position: absolute; bottom: 10px; right: 10px;
-            background-color: rgba(25, 135, 84, 0.1);
-            color: #198754;
-            font-size: 0.7rem; font-weight: 700;
-            padding: 2px 8px; border-radius: 6px;
+            position: absolute; 
+            top: -12px;        /* 與上方邊緣切齊或微凸 */
+            right: 25px;       /* 靠右，但在勾勾左側 */
+            background-color: #198754; 
+            color: white;
+            font-size: 0.75rem; font-weight: 700;
+            padding: 2px 10px 2px 8px; /* 右邊多留一點空隙給勾勾 */
+            border-radius: 4px;
+            z-index: 9;        /* 在勾勾下面 */
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .p-name { font-weight: 900; font-size: 1.05rem; color: #000; margin-bottom: 4px; }
@@ -316,7 +326,7 @@
             window.scrollTo(0, 0);
         }
 
-        // 🔥 標記已盤點商品的函式 (團隊協作版)
+        // 🔥 標記已盤點商品的函式 (團隊協作版 - V5.3 Layout Fix)
         function markAuditedProducts() {
             if (currentChainId < 0) return;
 
@@ -343,20 +353,19 @@
                 if (storeLogs.hasOwnProperty(prodId)) {
                     card.classList.add('audited');
                     
-                    // 打勾勾
+                    // A. 打勾勾 (右上角)
                     const badge = document.createElement('div');
                     badge.className = 'audited-badge';
                     badge.innerHTML = '<i class="bi bi-check-lg"></i>';
                     card.appendChild(badge);
 
-                    // 顯示是誰盤的
+                    // B. 顯示是誰盤的 (右上角，勾勾左側)
                     const staffName = storeLogs[prodId];
-                    // 判斷是不是我自己 (如果有 userLineId 且 Log 裡有我的記錄)
                     const isMe = rawAuditLogs.some(l => l.product_id == prodId && l.chain_id == currentChainId && l.staff_line_id == userLineId);
                     
                     const tag = document.createElement('div');
                     tag.className = 'audited-by-tag';
-                    tag.innerHTML = isMe ? '✅ 已完成' : `👤 ${staffName}`;
+                    tag.innerHTML = isMe ? '✅ 我完成的' : `👤 ${staffName}`;
                     card.appendChild(tag);
                 }
             });
