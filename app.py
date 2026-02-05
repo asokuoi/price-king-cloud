@@ -503,9 +503,8 @@ def api_price_update():
         return jsonify({'status':'error', 'msg':str(e)}), 500
     finally: conn.close()
 
-
 # ==========================================
-# 🛒 消費者搜尋 V3.5 (分組冠軍 + 液態單位修正)
+# 🔍 消費者搜尋 API (V90.1: CP值顯示邏輯修正版)
 # ==========================================
 @app.route('/search')
 def consumer_search():
@@ -515,7 +514,7 @@ def consumer_search():
     target_category = request.args.get('category')
     pin_product_id = request.args.get('pin_id')
     
-    # V89.7: 接收定位與身分
+    # 接收定位與身分
     lat = request.args.get('lat', '')
     lng = request.args.get('lng', '')
     user_line_id = request.args.get('line_id', '')
@@ -523,7 +522,7 @@ def consumer_search():
     conn = get_db(); cur = conn.cursor()
     products_list = []
     
-    # 1. 流量紀錄 (寫入台灣時間)
+    # 1. 流量紀錄
     if keyword:
         try: 
             cur.execute("""
@@ -543,7 +542,7 @@ def consumer_search():
             for r in cur.fetchall(): lobby_data['chains'].append({"id": dict(r)['id'], "name": dict(r)['name'], "logo_url": dict(r)['logo_url'], "icon": "🏪"})
         except: pass
         conn.close()
-        return render_template('search.html', products_data="[]", lobby_data=lobby_data, search_keyword="", search_mode="", liff_id=os.environ.get('LIFF_ID', config.LIFF_ID), pin_id="")
+        return render_template('search.html', products_data="[]", lobby_data=lobby_data, search_keyword="", search_mode="", liff_id=os.environ.get('LIFF_ID', config.LIFF_ID), pin_id="", target_chain_info="{}")
 
     # 3. 撈產品基礎資料
     cols = "id, name, spec, material, category, keywords, priority, image_url, capacity, unit"
@@ -591,10 +590,9 @@ def consumer_search():
             # CP值計算 (每1單位價格，用於排序)
             score = (price / cap) if cap > 0 and price > 0 else price
             
-            # cp_display (顯示用，自動轉 100ml)
+            # cp_display (顯示用，自動轉 100ml/100g)
             cp_disp = ""
             if cap > 0 and price > 0:
-                # 判斷液體/重量單位 (不分大小寫)
                 high_vol_units = ['ml', 'g', 'cc', 'cm']
                 if unit.lower() in high_vol_units:
                     val_100 = (price / cap) * 100
@@ -602,12 +600,12 @@ def consumer_search():
                 else:
                     cp_disp = f"${round(score, 1)}/{unit}"
 
-            # 更新全域 CP 霸主
+            # 更新全域 CP 霸主 (這是預設值，全網比價時用)
             if score < p['cp_score']: 
                 p['cp_score'] = score
                 p['cp_display'] = cp_disp 
             
-            # 更新店內 CP 分數
+            # 更新店內 CP 分數 (排序用)
             is_target_store = (str(d['chain_id']) == str(target_chain_id)) if target_chain_id else False
             if is_target_store:
                 if score < p['local_score']: p['local_score'] = score
@@ -631,7 +629,7 @@ def consumer_search():
                 'price': int(price),
                 'base_price': int(d.get('base_price', 0)),
                 'promo_label': d.get('promo_label', ''),
-                'cp_val': cp_disp, 
+                'cp_val': cp_disp,  # 把該通路的 CP 值字串存起來
                 'time_ago': time_str,
                 'is_target_store': is_target_store,
                 'is_hist_low': is_hist_low
@@ -654,15 +652,15 @@ def consumer_search():
                 filtered_list.append(p)
         raw_list = filtered_list
     
-    # 預設排序
+    # 預設排序 key
     def get_sort_key(p):
         is_pinned = (str(p['id']) == str(pin_product_id)) if pin_product_id else False
         return (0 if is_pinned else 1, p['cp_score'])
 
-    target_chain_info = {} # 用於傳遞給前端顯示 Store Header
+    target_chain_info = {} 
     
     if mode == 'store_shelf' and target_chain_id:
-        # 撈出該通路的資訊 (Logo, Name)
+        # 撈出該通路的資訊
         try:
             cur.execute("SELECT id, name, logo_url FROM chains WHERE id = %s", (target_chain_id,))
             chain_res = cur.fetchone()
@@ -671,7 +669,13 @@ def consumer_search():
 
         final_list = []
         for p in raw_list:
-            if any(pr['is_target_store'] for pr in p['prices']):
+            # 找出該通路的價格資料 (用來覆蓋顯示的 CP 值)
+            target_price_entry = next((pr for pr in p['prices'] if pr['is_target_store']), None)
+            
+            if target_price_entry:
+                # 🔥 修正核心：如果是單店模式，強制把顯示用的 CP 值改成該店的數值
+                # 這樣前端顯示的價格跟 CP 值才會吻合
+                p['cp_display'] = target_price_entry['cp_val']
                 final_list.append(p)
         
         # 店內模式排序：置頂 -> 分類 -> 本店分數
@@ -681,7 +685,7 @@ def consumer_search():
             x['local_score']
         ))
     else:
-        # 一般模式排序：置頂 -> 全域分數
+        # 一般模式排序：置頂 -> 全域分數 (CP霸主)
         products_list = sorted([p for p in raw_list if len(p['prices']) > 0], key=get_sort_key)
     
     # 價格內排序
@@ -690,7 +694,6 @@ def consumer_search():
 
     conn.close()
     
-    # 🔥 注意：這裡新增傳入 target_chain_info 供前端使用
     return render_template('search.html', 
                            products_data=json.dumps(products_list), 
                            lobby_data=lobby_data, 
@@ -1461,6 +1464,94 @@ def add_header(response):
     
     return response
 # 👆👆👆 這樣寫最穩，不會衝突 👆👆👆
+
+# ==========================================
+# 📊 價格矩陣 (Price Matrix) - V90.2 UI 強化版
+# ==========================================
+@app.route('/admin/audit/matrix')
+def admin_audit_matrix():
+    if not is_admin_logged_in(): return redirect(url_for('admin_login'))
+    
+    conn = get_db(); cur = conn.cursor()
+    
+    # 1. 取得通路
+    cur.execute("SELECT id, name, logo_url FROM chains WHERE status = 1 ORDER BY id")
+    chains = [dict(r) for r in cur.fetchall()]
+    chain_ids = [c['id'] for c in chains]
+
+    # 2. 取得商品 (包含材質、規格)
+    cur.execute("SELECT id, name, spec, material, category FROM products WHERE status = 1 ORDER BY category, priority DESC, id")
+    products = [dict(r) for r in cur.fetchall()]
+    
+    # 3. 取得價格快照 (🔥 新增 promo_label, base_price)
+    cur.execute("""
+        SELECT product_id, chain_id, price, base_price, promo_label, update_time 
+        FROM prices 
+        WHERE price > 0
+    """)
+    price_map = {} 
+    for r in cur.fetchall():
+        key = f"{r['product_id']}_{r['chain_id']}"
+        price_map[key] = dict(r)
+
+    # 4. 組裝資料
+    matrix_data = []
+    
+    # 為了前端快篩，我們需要收集所有的規格與材質
+    all_specs = set()
+    all_materials = set()
+    all_categories = set()
+
+    for p in products:
+        pid = p['id']
+        if p['spec']: all_specs.add(p['spec'])
+        if p['material']: all_materials.add(p['material'])
+        if p['category']: all_categories.add(p['category'])
+        
+        row = {
+            'info': p,
+            'prices': {},
+            'stats': {'min': None, 'max': None, 'diff_pct': 0, 'is_anomaly': False}
+        }
+        
+        valid_prices = []
+        
+        for cid in chain_ids:
+            key = f"{pid}_{cid}"
+            if key in price_map:
+                price_info = price_map[key]
+                row['prices'][cid] = price_info
+                valid_prices.append(price_info['price'])
+            else:
+                row['prices'][cid] = None
+        
+        # 異常偵測邏輯
+        if valid_prices:
+            min_p = min(valid_prices)
+            max_p = max(valid_prices)
+            row['stats']['min'] = min_p
+            
+            if min_p > 0:
+                diff = (max_p - min_p) / min_p
+                row['stats']['diff_pct'] = round(diff * 100, 1)
+                if diff >= 0.5: row['stats']['is_anomaly'] = True
+        
+        matrix_data.append(row)
+
+    conn.close()
+    
+    # 把篩選選項傳給前端
+    filters = {
+        'categories': sorted(list(all_categories)),
+        'specs': sorted(list(all_specs)),
+        'materials': sorted(list(all_materials))
+    }
+    
+    return render_template('admin/audit_matrix.html', 
+                           chains=chains, 
+                           matrix_data=matrix_data, 
+                           filters=filters)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=True)

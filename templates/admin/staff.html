@@ -22,7 +22,7 @@
     .col-history { min-width: 160px; text-align: center; } /* 給歷史績效用，稍微寬一點 */
 
     /* 虛擬頭像 */
-    .avatar-circle { width: 40px; height: 40px; background-color: #4e73df; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1rem; margin-right: 12px; position: relative; }
+    .avatar-circle { width: 40px; height: 40px; background-color: #4e73df; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1rem; margin-right: 12px; position: relative; flex-shrink: 0; }
     .status-dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; position: absolute; bottom: 0; right: 0; }
 
     /* 數據膠囊 (通用) */
@@ -92,9 +92,9 @@
                                 <div class="status-dot" style="background-color: {{ '#1cc88a' if s.status == 1 else '#e74a3b' }}"></div>
                             </div>
                             <div>
-                                <div class="fw-bold text-dark">{{ s.name }}</div>
-                                <div class="text-muted small font-monospace" style="font-size: 0.75rem;">
-                                    <i class="bi bi-person-badge"></i> {{ s.line_id[:8] }}...
+                                <div class="fw-bold text-dark fs-6">{{ s.name }}</div>
+                                <div class="text-secondary fw-bold font-monospace mt-1" style="font-size: 0.8rem; letter-spacing: 0.5px;">
+                                    <i class="bi bi-person-badge me-1"></i>{{ s.line_id }}
                                 </div>
                             </div>
                         </div>

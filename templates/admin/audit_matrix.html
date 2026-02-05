@@ -1,0 +1,364 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<style>
+    /* === 全局背景 === */
+    body { background-color: #f8f9fc; }
+    
+    /* === 頂部標題列 === */
+    .page-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    
+    /* === 智慧篩選列 === */
+    .filter-bar-wrapper {
+        background: #fff; border-radius: 8px; padding: 8px 12px; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.03); margin-bottom: 15px;
+        border: 1px solid #e3e6f0;
+    }
+    .search-row { margin-bottom: 8px; position: relative; }
+    .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #adb5bd; font-size: 0.8rem; }
+    .search-input { padding-left: 32px; border-radius: 6px; border: 1px solid #d1d3e2; background: #fff; height: 34px; font-size: 0.85rem;}
+    
+    .chip-container { 
+        display: flex; gap: 4px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; scrollbar-width: none;
+    }
+    .chip-container::-webkit-scrollbar { display: none; }
+    
+    .filter-chip {
+        font-size: 0.75rem; padding: 4px 10px; border-radius: 50px; 
+        border: 1px solid #e3e6f0; background: #fff; color: #5a5c69; 
+        cursor: pointer; transition: all 0.2s; user-select: none; font-weight: 600;
+        display: flex; align-items: center; gap: 4px;
+    }
+    .filter-chip:hover { background: #eaecf4; color: #4e73df; }
+    .filter-chip.active { background: #4e73df; color: white; border-color: #4e73df; }
+    .filter-chip.chip-anomaly { color: #e74a3b; border-color: #e74a3b; background: #fff; }
+    .filter-chip.chip-anomaly.active { background: #e74a3b; color: white; }
+
+    /* === 矩陣表格容器 === */
+    .matrix-wrapper {
+        background: #fff; border-radius: 8px; border: 1px solid #e3e6f0;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        max-height: 80vh; overflow: auto; position: relative;
+    }
+    
+    .table-matrix { margin-bottom: 0; border-collapse: separate; border-spacing: 0; }
+    
+    /* --- 標頭 (Chains) --- */
+    .table-matrix thead th {
+        position: sticky; top: 0; z-index: 20;
+        background: #f8f9fc; color: #5a5c69; font-weight: 700; font-size: 0.75rem;
+        border-bottom: 2px solid #e3e6f0; border-right: 1px solid #eaecf4;
+        text-align: center; padding: 8px 2px; 
+        width: 55px; min-width: 55px; max-width: 55px; /* 🔥 極窄寬度 */
+        vertical-align: bottom;
+        line-height: 1.1;
+        white-space: normal;
+    }
+    .chain-logo-sm { width: 18px; height: 18px; object-fit: contain; border-radius: 3px; margin-bottom: 2px; display: block; margin: 0 auto 2px auto;}
+
+    /* --- 第一欄 (商品資訊) - 鎖定左側 --- */
+    .table-matrix tbody th.col-product {
+        position: sticky; left: 0; z-index: 10;
+        background: #fff; border-right: 2px solid #e3e6f0; border-bottom: 1px solid #eaecf4;
+        width: 180px; min-width: 180px; max-width: 180px; /* 🔥 修改為 180px */
+        padding: 8px 10px; vertical-align: middle;
+        box-shadow: 4px 0 8px rgba(0,0,0,0.02);
+    }
+    
+    /* 左上角空白格 */
+    .table-matrix thead th:first-child {
+        left: 0; z-index: 30; background: #f8f9fc; border-right: 2px solid #e3e6f0; border-bottom: 2px solid #e3e6f0;
+    }
+
+    .prod-name { font-size: 0.9rem; font-weight: 700; color: #2e343a; line-height: 1.35; margin-bottom: 4px; white-space: normal; }
+    .prod-meta-row { display: flex; gap: 3px; flex-wrap: wrap; }
+    .badge-meta { font-size: 0.7rem; font-weight: 500; background: #f1f3f5; color: #858796; padding: 1px 6px; border-radius: 3px; }
+    .badge-cat { background: #eef2ff; color: #4e73df; }
+
+    /* --- 價格格子 (核心佈局) --- */
+    .price-cell { 
+        padding: 4px 2px; vertical-align: middle;
+        border-bottom: 1px solid #eaecf4; border-right: 1px solid #f8f9fc;
+        cursor: pointer; transition: background-color 0.1s; 
+        height: 60px; /* 固定高度 */
+        position: relative;
+    }
+    .price-cell:hover { background-color: #f0f5ff; }
+    .price-cell.empty { background-color: #fdfdfe; }
+    .price-cell.empty::after { content: '-'; color: #e3e6f0; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-weight: 300;}
+
+    /* 🔥 內部容器：左右分佈 (Left: Meta, Right: Price) */
+    .cell-inner {
+        display: flex; 
+        align-items: center; 
+        justify-content: space-between; /* 左右撐開 */
+        height: 100%; width: 100%;
+        padding: 0 1px;
+    }
+
+    /* 👈 左邊區塊 (標籤+日期) - 靠左 */
+    .cell-left-meta {
+        flex: 1;
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center;
+        align-items: flex-start; /* 靠左對齊 */
+        overflow: hidden;
+        margin-right: 2px; /* 與價格保持極小距離 */
+    }
+
+    /* 👉 右邊區塊 (價格) - 靠右 */
+    .cell-right-price {
+        flex-shrink: 0;
+        text-align: right;
+    }
+
+    /* 1. 促銷標籤 (Left Top) */
+    .promo-tag { 
+        font-size: 0.6rem; font-weight: 700; color: #b7860b; 
+        background: #fff9db; padding: 0 3px; border-radius: 2px; 
+        line-height: 1.1; max-width: 100%; 
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        margin-bottom: 1px;
+    }
+
+    /* 2. 日期 (Left Bottom) */
+    .date-mini { 
+        font-size: 0.55rem; color: #b0b3b8; line-height: 1; 
+        font-family: monospace; letter-spacing: -0.5px; white-space: nowrap;
+        transform: scale(0.9); transform-origin: left center;
+    }
+    
+    /* 🔥 紅色無紀錄 */
+    .date-none {
+        color: #e74a3b; font-weight: 700;
+    }
+
+    /* 3. 價格 (Right, Big) */
+    .price-hero { 
+        font-family: 'Consolas', monospace; 
+        font-weight: 800; font-size: 1.1rem; color: #2e343a; 
+        line-height: 1; letter-spacing: -0.5px;
+    }
+
+    /* 異常狀態 */
+    .row-anomaly th { background-color: #fff5f5 !important; border-left: 4px solid #e74a3b; }
+    .row-anomaly .price-cell { background-color: #fff5f5; }
+    .row-anomaly .price-hero { color: #e74a3b; }
+    .anomaly-indicator { 
+        display: inline-flex; align-items: center; gap: 3px;
+        color: #e74a3b; font-size: 0.7rem; font-weight: 700; 
+        margin-top: 4px; background: rgba(231, 74, 59, 0.1); padding: 1px 6px; border-radius: 4px;
+    }
+
+    /* 歷史紀錄 Modal */
+    .table-hist th { background: #343a40; color: white; font-size: 0.75rem; padding: 8px;}
+    .table-hist td { font-size: 0.85rem; vertical-align: middle; padding: 8px;}
+</style>
+
+<div class="page-header-row">
+    <div>
+        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-grid-3x3-gap-fill text-primary me-2"></i>價格矩陣</h6>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm py-0" onclick="location.reload()"><i class="bi bi-arrow-clockwise"></i></button>
+</div>
+
+<div class="filter-bar-wrapper">
+    <div class="search-row">
+        <i class="bi bi-search search-icon"></i>
+        <input type="text" id="searchInput" class="form-control search-input" placeholder="搜尋商品..." onkeyup="applyFilters()">
+    </div>
+    
+    <div class="chip-container">
+        <div class="filter-chip active" onclick="resetFilters(this)">全部</div>
+        <div class="filter-chip chip-anomaly" onclick="toggleFilter('anomaly', true, this)">
+            <i class="bi bi-lightning-fill"></i> 異常
+        </div>
+        <div style="width: 1px; background: #e3e6f0; margin: 0 4px;"></div>
+        {% for cat in filters.categories %}
+        <div class="filter-chip" onclick="toggleFilter('category', '{{ cat }}', this)">{{ cat }}</div>
+        {% endfor %}
+        <div style="width: 1px; background: #e3e6f0; margin: 0 4px;"></div>
+        {% for spec in filters.specs %}
+        <div class="filter-chip" onclick="toggleFilter('spec', '{{ spec }}', this)">{{ spec }}</div>
+        {% endfor %}
+        {% for mat in filters.materials %}
+        <div class="filter-chip" onclick="toggleFilter('material', '{{ mat }}', this)">{{ mat }}</div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="matrix-wrapper">
+    <table class="table table-matrix">
+        <thead>
+            <tr>
+                <th>商品</th>
+                {% for c in chains %}
+                <th title="{{ c.name }}">
+                    {% if c.logo_url %}
+                    <img src="{{ c.logo_url }}" class="chain-logo-sm">
+                    {% endif %}
+                    <div>{{ c.name }}</div>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in matrix_data %}
+            <tr class="matrix-row {{ 'row-anomaly' if row.stats.is_anomaly else '' }}"
+                data-name="{{ row.info.name }}"
+                data-cat="{{ row.info.category }}"
+                data-spec="{{ row.info.spec }}"
+                data-material="{{ row.info.material }}"
+                data-anomaly="{{ 'true' if row.stats.is_anomaly else 'false' }}">
+                
+                <th class="col-product">
+                    <div class="prod-name">{{ row.info.name }}</div>
+                    <div class="prod-meta-row">
+                        <span class="badge-meta badge-cat">{{ row.info.category }}</span>
+                        {% if row.info.spec %}<span class="badge-meta">{{ row.info.spec }}</span>{% endif %}
+                        {% if row.info.material %}<span class="badge-meta">{{ row.info.material }}</span>{% endif %}
+                    </div>
+                    {% if row.stats.is_anomaly %}
+                    <div class="anomaly-indicator">
+                        <i class="bi bi-exclamation-triangle-fill"></i> 價差 {{ row.stats.diff_pct }}%
+                    </div>
+                    {% endif %}
+                </th>
+
+                {% for c in chains %}
+                    {% set price_data = row.prices[c.id] %}
+                    
+                    <td class="price-cell {{ 'empty' if not price_data else '' }}" 
+                        {% if price_data %}onclick="showHistory({{ c.id }}, {{ row.info.id }}, '{{ c.name }}', '{{ row.info.name }}')"{% endif %}>
+                        
+                        {% if price_data %}
+                            <div class="cell-inner">
+                                <div class="cell-left-meta">
+                                    {% if price_data.promo_label %}
+                                        <div class="promo-tag" title="{{ price_data.promo_label }}">{{ price_data.promo_label }}</div>
+                                    {% else %}
+                                        {% endif %}
+                                    
+                                    <div class="date-mini">
+                                        {% if price_data.update_time %}
+                                            {{ price_data.update_time.strftime('%m/%d') }}
+                                        {% else %}
+                                            <span class="date-none">無紀錄</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <div class="cell-right-price">
+                                    <div class="price-hero">${{ price_data.price }}</div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header py-2 bg-dark text-white">
+                <h6 class="modal-title fw-bold" id="histTitle">歷史紀錄</h6>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0 table-hist">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>日期</th><th>員工</th><th>價格</th>
+                            </tr>
+                        </thead>
+                        <tbody id="histBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let activeFilters = { category: null, spec: null, material: null, anomaly: false };
+
+function toggleFilter(type, value, btn) {
+    if (activeFilters[type] === value) {
+        activeFilters[type] = null;
+        btn.classList.remove('active');
+    } else {
+        activeFilters[type] = value;
+        const siblings = btn.parentElement.querySelectorAll(`.filter-chip`);
+        siblings.forEach(el => {
+            if(el.textContent === value || (type === 'anomaly' && el.classList.contains('chip-anomaly'))) {} 
+            else if (el.onclick && el.onclick.toString().includes(`'${type}'`)) {
+                el.classList.remove('active');
+            }
+        });
+        btn.classList.add('active');
+    }
+    document.querySelector('.filter-chip:first-child').classList.remove('active');
+    applyFilters();
+}
+
+function resetFilters(btn) {
+    activeFilters = { category: null, spec: null, material: null, anomaly: false };
+    document.querySelectorAll('.filter-chip').forEach(el => el.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilters();
+}
+
+function applyFilters() {
+    const keyword = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('.matrix-row');
+    
+    rows.forEach(row => {
+        const name = row.dataset.name.toLowerCase();
+        const cat = row.dataset.cat;
+        const spec = row.dataset.spec;
+        const mat = row.dataset.material;
+        const isAnomaly = row.dataset.anomaly === 'true';
+        
+        let pass = true;
+        if (activeFilters.category && activeFilters.category !== cat) pass = false;
+        if (activeFilters.spec && activeFilters.spec !== spec) pass = false;
+        if (activeFilters.material && activeFilters.material !== mat) pass = false;
+        if (activeFilters.anomaly && !isAnomaly) pass = false;
+        if (keyword && !name.includes(keyword)) pass = false;
+        
+        row.style.display = pass ? '' : 'none';
+    });
+}
+
+function showHistory(chainId, productId, chainName, prodName) {
+    document.getElementById('histTitle').textContent = `${chainName} - ${prodName}`;
+    new bootstrap.Modal(document.getElementById('historyModal')).show();
+    const tbody = document.getElementById('histBody');
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+    
+    fetch(`/admin/api/history?chain_id=${chainId}&product_id=${productId}`)
+        .then(res => res.json())
+        .then(data => {
+            if(data.status === 'success') {
+                if (data.data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3 text-muted">無紀錄</td></tr>';
+                    return;
+                }
+                let html = '';
+                data.data.forEach(row => {
+                    html += `<tr><td><div class="fw-bold">${row.date.substring(5)}</div></td><td>${row.staff}</td><td class="fw-bold text-success">$${row.price}</td></tr>`;
+                });
+                tbody.innerHTML = html;
+            } else {
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">失敗</td></tr>`;
+            }
+        });
+}
+</script>
+{% endblock %}
