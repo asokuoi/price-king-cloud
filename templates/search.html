@@ -9,68 +9,28 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
     <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <style>
         body { font-family: 'Noto Sans TC', sans-serif; background-color: #f4f7f6; padding-bottom: 80px; }
-        
-        /* Header */
         .search-header { background: #fff; position: sticky; top: 0; z-index: 1050; padding: 12px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
         .search-input { border-radius: 50px; background: #f1f3f5; border: none; height: 42px; font-weight: 500; padding-left: 45px; }
         
-        /* Store Identity Bar */
-        .store-identity-bar {
-            background-color: #d1e7dd;
-            color: #0f5132;
-            padding: 8px 15px;
-            font-size: 0.95rem; font-weight: 700;
-            display: flex; align-items: center; 
-            position: sticky; top: 66px; z-index: 1045;
-            border-bottom: 1px solid #badbcc;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-            min-height: 50px; 
-        }
+        .store-identity-bar { background-color: #d1e7dd; color: #0f5132; padding: 8px 15px; font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; position: sticky; top: 66px; z-index: 1045; border-bottom: 1px solid #badbcc; box-shadow: 0 2px 5px rgba(0,0,0,0.05); min-height: 50px; }
         .store-logo-sm { width: 24px; height: 24px; border-radius: 4px; object-fit: contain; background: #fff; border: 1px solid #fff; }
 
-        /* Filter Bar */
-        .smart-filter-bar { 
-            white-space: nowrap; overflow-x: auto; padding: 10px 15px; 
-            background: #fff; border-bottom: 1px solid #eee; 
-            position: sticky; top: 66px; z-index: 1040; 
-            display: flex; gap: 8px; scrollbar-width: none;
-        }
+        .smart-filter-bar { white-space: nowrap; overflow-x: auto; padding: 10px 15px; background: #fff; border-bottom: 1px solid #eee; position: sticky; top: 66px; z-index: 1040; display: flex; gap: 8px; scrollbar-width: none; }
         .smart-filter-bar::-webkit-scrollbar { display: none; }
-        .filter-chip { 
-            display: inline-flex; align-items: center; justify-content: center;
-            padding: 6px 16px; border-radius: 20px; 
-            background: #fff; color: #495057; border: 1px solid #e9ecef;
-            font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s;
-            flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-        }
+        .filter-chip { display: inline-flex; align-items: center; justify-content: center; padding: 6px 16px; border-radius: 20px; background: #fff; color: #495057; border: 1px solid #e9ecef; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: all 0.2s; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
         .filter-chip.active { background: #212529; color: white; border-color: #212529; box-shadow: 0 3px 6px rgba(0,0,0,0.15); }
 
-        /* =========================================
-           💎 卡片設計 V4.2
-           ========================================= */
-        .product-card { 
-            background: #fff; border-radius: 12px; margin-bottom: 14px; 
-            border: 2.5px solid #ffb3c1; 
-            box-shadow: 0 4px 8px rgba(0,0,0,0.03);
-            overflow: hidden; position: relative;
-        }
+        /* 卡片設計 */
+        .product-card { background: #fff; border-radius: 12px; margin-bottom: 14px; border: 2.5px solid #ffb3c1; box-shadow: 0 4px 8px rgba(0,0,0,0.03); overflow: hidden; position: relative; }
         .product-card.global-king { border: 2.5px solid #ffc107; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.15); }
         .product-card.pinned-card { border: 2.5px solid #0d6efd; background: #f8fbff; }
-        .product-card.diamond-king {
-            border: 3px solid transparent;
-            background: linear-gradient(#f8fbff, #f8fbff) padding-box,
-                        linear-gradient(135deg, #0dcaf0 0%, #0d6efd 50%, #6f42c1 100%) border-box;
-            box-shadow: 0 0 20px rgba(13, 202, 240, 0.3);
-        }
+        .product-card.diamond-king { border: 3px solid transparent; background: linear-gradient(#f8fbff, #f8fbff) padding-box, linear-gradient(135deg, #0dcaf0 0%, #0d6efd 50%, #6f42c1 100%) border-box; box-shadow: 0 0 20px rgba(13, 202, 240, 0.3); }
 
-        /* 徽章 */
-        .badge-float {
-            position: absolute; top: 0; right: 0; font-weight: 800; font-size: 0.75rem;
-            padding: 4px 12px; border-bottom-left-radius: 12px; z-index: 10;
-        }
+        .badge-float { position: absolute; top: 0; right: 0; font-weight: 800; font-size: 0.75rem; padding: 4px 12px; border-bottom-left-radius: 12px; z-index: 10; }
         .global-king-badge { background: #ffc107; color: #000; }
         .pinned-badge { background: #0d6efd; color: #fff; }
         .store-king-badge { background: #ffc107; color: #000; } 
@@ -85,10 +45,7 @@
         .p-cp { color: #198754; font-weight: 700; font-size: 0.95rem; margin-left: auto; }
 
         .price-list { border-top: 1px solid #f8f9fa; }
-        .price-row { 
-            padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 1px solid #f8f9fa; cursor: pointer; position: relative;
-        }
+        .price-row { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f8f9fa; cursor: pointer; position: relative; }
         .price-row:last-child { border-bottom: none; }
         .price-row.local-winner { background-color: #f8fbff; }
         .global-king .price-row.local-winner { background-color: #fffdf5; }
@@ -98,11 +55,9 @@
         .chain-logo { width: 28px; height: 28px; border-radius: 6px; object-fit: contain; border: 1px solid #f0f0f0; background: #fff; flex-shrink: 0;}
         .chain-name { font-weight: 700; font-size: 0.95rem; color: #343a40; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .chain-arrow-icon { color: #0d6efd; font-size: 0.8rem; margin-top: 2px; margin-left: 4px; flex-shrink: 0; min-width: 16px; }
-
         .price-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 80px; }
         .promo-row { min-height: 18px; margin-bottom: 2px; display: flex; justify-content: flex-end; width: 100%; }
         .promo-badge { font-size: 0.7rem; background: #fff8c4; color: #b08d00; padding: 2px 6px; border-radius: 4px; font-weight: 700; display: inline-block; }
-
         .price-val-row { display: flex; align-items: flex-end; justify-content: flex-end; gap: 6px; height: 24px; }
         .price-current { font-weight: 800; font-size: 1.3rem; color: #212529; line-height: 1; }
         .price-current.is-cheapest { color: #dc3545; }
@@ -115,13 +70,11 @@
         .store-price-val-row { display: flex; align-items: flex-end; justify-content: flex-start; gap: 6px; height: 24px;}
         .store-action-link { color: #0d6efd; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 4px; }
 
-        /* 大廳 */
         .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 15px; }
         .cat-item { text-align: center; position: relative;}
         .cat-icon { width: 50px; height: 50px; background: #fff; border-radius: 16px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 6px rgba(0,0,0,0.03); color: #495057; }
         .cat-text { font-size: 0.8rem; color: #6c757d; font-weight: 500; }
 
-        /* 活動卡片 */
         .event-scroll-box { display: flex; gap: 12px; overflow-x: auto; padding: 5px 15px 15px 15px; scrollbar-width: none; }
         .event-scroll-box::-webkit-scrollbar { display: none; }
         .event-card { min-width: 260px; max-width: 260px; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border: 1px solid #eee; position: relative; overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: transform 0.2s; }
@@ -139,26 +92,28 @@
         .bg-warning-subtle { background: #fff8c4; color: #856404; }
         .bg-success-subtle { background: #d1e7dd; color: #0f5132; }
 
-        /* 🔥 新增：跑馬燈 (News Ticker) */
-        .notice-container {
-            background: #fff; border-bottom: 1px solid #f0f0f0;
-            height: 40px; overflow: hidden; position: relative;
-            padding: 0 15px; display: flex; align-items: center;
-        }
+        /* 公告 */
+        .notice-container { background: #fff; border-bottom: 1px solid #f0f0f0; height: 40px; overflow: hidden; position: relative; padding: 0 12px; display: flex; align-items: center; cursor: pointer; }
+        .notice-container:active { background: #f8f9fa; }
         .notice-icon { color: #f59f00; margin-right: 10px; font-size: 1rem; flex-shrink: 0; }
-        .notice-wrapper {
-            flex-grow: 1; height: 100%; position: relative; overflow: hidden;
+        .notice-wrapper { flex-grow: 1; height: 100%; position: relative; overflow: hidden; }
+        .notice-list { position: absolute; width: 100%; top: 0; left: 0; transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1); }
+        .notice-item { height: 40px; display: flex; align-items: center; font-size: 0.9rem; color: #495057; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        .notice-arrow { color: #adb5bd; font-size: 0.8rem; margin-left: 8px; }
+
+        /* FAB */
+        .fab-btn {
+            position: fixed; bottom: 20px; right: 20px;
+            width: 50px; height: 50px;
+            background: linear-gradient(135deg, #0d6efd, #0043a8);
+            color: white; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 15px rgba(13, 110, 253, 0.4);
+            cursor: pointer; z-index: 1060; border: none;
+            transition: transform 0.2s;
         }
-        .notice-list {
-            position: absolute; width: 100%; top: 0; left: 0;
-            /* 動畫由 JS 控制 */
-            transition: transform 0.5s ease-in-out;
-        }
-        .notice-item {
-            height: 40px; display: flex; align-items: center;
-            font-size: 0.9rem; color: #495057; font-weight: 500;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
+        .fab-btn:active { transform: scale(0.9); }
+        .fab-btn i { font-size: 1.4rem; }
 
     </style>
 </head>
@@ -184,6 +139,62 @@
 <div id="smart-filter-bar" class="smart-filter-bar d-none"></div>
 <div id="main-content" class="container pt-3"></div>
 
+<button class="fab-btn" onclick="openFeedbackModal()">
+    <i class="bi bi-chat-dots-fill"></i>
+</button>
+
+<div class="modal fade" id="noticeDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-megaphone-fill text-warning me-2"></i>系統公告</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="noticeModalBody" class="d-flex flex-column gap-3 py-2"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light w-100 fw-bold" data-bs-dismiss="modal">知道了</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="feedbackModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">💬 意見回饋</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">回報類型</label>
+                    <select class="form-select" id="fbCategory">
+                        <option value="price">💰 價格錯誤回報</option>
+                        <option value="wish">✨ 許願想找的商品</option>
+                        <option value="bug">🐛 網站故障 / 建議</option>
+                        <option value="contact">🤝 聯絡作者 / 合作</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">詳細內容</label>
+                    <textarea class="form-control" id="fbContent" rows="4" placeholder="請告訴我們發生什麼事..."></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">聯絡方式 (選填)</label>
+                    <input type="text" class="form-control" id="fbContact" placeholder="Email 或 Line ID">
+                    <small class="text-muted">若需要我們回覆您，請留下聯絡資料</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="submitFeedback()">送出回報</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     const products = {{ products_data | safe if products_data else '[]' }};
     const lobbyData = {{ lobby_data | safe }};
@@ -194,7 +205,7 @@
     const myLiffId = "{{ liff_id }}"; 
 
     let activeFilters = { spec: null, material: null, keyword: null };
-    let noticeInterval = null; // 跑馬燈計時器
+    let noticeInterval = null;
 
     window.onload = function() {
         initGPS();
@@ -313,7 +324,11 @@
     }
 
     function renderProductCards(data, container) {
-        if (data.length === 0) { container.innerHTML = `<div class="p-5 text-center text-muted">無符合商品</div>`; return; }
+        if (data.length === 0) { 
+            // 🔥 呼叫機器人頁面
+            renderEmptyState(container); 
+            return; 
+        }
 
         let storeCategoryMinScores = {}; 
         let storeCategoryKingIds = {};
@@ -445,22 +460,21 @@
     }
 
     function renderLobby(container) {
-        // 🔥 1. 跑馬燈 (Notice)
         let noticeHtml = '';
         if (lobbyData.notices && lobbyData.notices.length > 0) {
             noticeHtml = `
-                <div class="notice-container">
+                <div class="notice-container" onclick="openNoticeModal()">
                     <div class="notice-icon"><i class="bi bi-megaphone-fill"></i></div>
                     <div class="notice-wrapper">
                         <div class="notice-list" id="noticeList">
                             ${lobbyData.notices.map(n => `<div class="notice-item">${n.content}</div>`).join('')}
                         </div>
                     </div>
+                    <div class="notice-arrow"><i class="bi bi-chevron-down"></i></div>
                 </div>
             `;
         }
 
-        // 🔥 2. 活動卡片
         let eventsHtml = '';
         if (lobbyData.events && lobbyData.events.length > 0) {
             eventsHtml = `
@@ -502,7 +516,6 @@
                         <div class="cat-text">${c.name}</div>
                     </div>`).join('')}
             </div>
-            
             <h6 class="px-3 text-secondary fw-bold mt-4 mb-3 small">商品分類</h6>
             <div class="cat-grid">
                 ${lobbyData.categories.map(c => `
@@ -513,7 +526,6 @@
             </div>`;
         container.innerHTML = html;
 
-        // 🔥 啟動跑馬燈動畫
         if (lobbyData.notices && lobbyData.notices.length > 1) {
             startMarquee();
         }
@@ -524,18 +536,130 @@
         if (!list) return;
         const count = list.children.length;
         let index = 0;
-        
-        // 清除舊的
         if (noticeInterval) clearInterval(noticeInterval);
-
         noticeInterval = setInterval(() => {
             index++;
             if (index >= count) index = 0;
             list.style.transform = `translateY(-${index * 40}px)`;
-        }, 3000); // 每 3 秒換下一則
+        }, 3000); 
     }
 
-    function renderEmptyState(container) { container.innerHTML = `<div class="p-5 text-center">找不到商品</div>`; }
+    function openNoticeModal() {
+        if (!lobbyData.notices || lobbyData.notices.length === 0) return;
+        const body = document.getElementById('noticeModalBody');
+        let html = lobbyData.notices.map(n => `
+            <div class="d-flex gap-2">
+                <div class="mt-1 flex-shrink-0">
+                    ${n.type === 'danger' ? '<i class="bi bi-exclamation-circle-fill text-danger"></i>' : 
+                      n.type === 'warning' ? '<i class="bi bi-cone-striped text-warning"></i>' : 
+                      '<i class="bi bi-info-circle-fill text-primary"></i>'}
+                </div>
+                <div class="text-dark small" style="line-height:1.5;">${n.content}</div>
+            </div>
+            <hr class="my-1 border-light">
+        `).join('');
+        body.innerHTML = html;
+        new bootstrap.Modal(document.getElementById('noticeDetailModal')).show();
+    }
+
+    function openFeedbackModal() {
+        document.getElementById('fbContent').value = '';
+        document.getElementById('fbContact').value = '';
+        document.getElementById('fbCategory').selectedIndex = 0;
+        new bootstrap.Modal(document.getElementById('feedbackModal')).show();
+    }
+
+    async function submitFeedback() {
+        const category = document.getElementById('fbCategory').value;
+        const content = document.getElementById('fbContent').value.trim();
+        const contact = document.getElementById('fbContact').value.trim();
+        
+        if (!content) {
+            alert('請輸入回報內容');
+            return;
+        }
+
+        const submitBtn = document.querySelector('#feedbackModal .btn-primary');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 傳送中...';
+
+        let uid = sessionStorage.getItem('u_uid');
+        let uname = sessionStorage.getItem('u_name');
+
+        if (!uid || !uname) {
+            try {
+                if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
+                    const profile = await liff.getProfile();
+                    uid = profile.userId;
+                    uname = profile.displayName;
+                    sessionStorage.setItem('u_uid', uid);
+                    sessionStorage.setItem('u_name', uname);
+                }
+            } catch (e) {
+                console.error("LIFF Profile Error:", e);
+            }
+        }
+
+        uid = uid || 'anonymous';
+        uname = uname || '訪客';
+
+        fetch('/api/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                line_id: uid,
+                user_name: uname,
+                category: category,
+                content: content,
+                contact_info: contact
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            const modalEl = document.getElementById('feedbackModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            modal.hide();
+        })
+        .catch(err => {
+            alert('傳送失敗，請稍後再試');
+            console.error(err);
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        });
+    }
+
+    // 🔥 機器人與自動跳轉
+    function renderEmptyState(container) { 
+        container.innerHTML = `
+            <div class="p-5 text-center">
+                <div class="mb-3 text-secondary">
+                    <i class="bi bi-robot" style="font-size: 4rem;"></i>
+                </div>
+                <h5 class="text-dark fw-bold mb-2">找不到商品</h5>
+                <p class="text-muted small mb-4">很抱歉，找不到您要的商品資料。</p>
+                <div class="text-muted small">
+                    <span id="countdown">3</span> 秒後自動返回大廳...
+                </div>
+            </div>
+        `;
+        
+        let seconds = 3;
+        const timer = setInterval(() => {
+            seconds--;
+            const el = document.getElementById('countdown');
+            if(el) el.textContent = seconds;
+            
+            if (seconds <= 0) {
+                clearInterval(timer);
+                goToUrlWithGPS('/search'); // 跳轉回大廳
+            }
+        }, 1000);
+    }
+
     function handleEnter(event) { if (event.key === 'Enter') performSearch(); }
     
     function performSearch() {

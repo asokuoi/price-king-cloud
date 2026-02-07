@@ -1,0 +1,111 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold mb-0 text-dark">
+        <i class="bi bi-chat-quote-fill text-info me-2"></i>使用者回饋中心
+    </h4>
+    <button class="btn btn-outline-secondary btn-sm" onclick="location.reload()">
+        <i class="bi bi-arrow-clockwise"></i> 重新整理
+    </button>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4" style="width: 100px;">狀態</th>
+                        <th style="width: 120px;">類型</th>
+                        <th>內容</th>
+                        <th style="width: 180px;">回報者/聯絡</th>
+                        <th style="width: 120px;">時間</th>
+                        <th class="text-end pe-4" style="width: 120px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in feedbacks %}
+                    <tr class="{{ 'table-light text-muted' if f.status == 1 else '' }}">
+                        <td class="ps-4">
+                            {% if f.status == 0 %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="bi bi-envelope-exclamation"></i> 待處理
+                                </span>
+                            {% else %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-circle"></i> 已結案
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {% if f.category == 'price' %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">💰 價格錯誤</span>
+                            {% elif f.category == 'wish' %}
+                                <span class="badge bg-primary bg-opacity-10 text-primary border border-primary">✨ 許願商品</span>
+                            {% elif f.category == 'bug' %}
+                                <span class="badge bg-dark bg-opacity-10 text-dark border border-dark">🐛 系統報錯</span>
+                            {% else %}
+                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary">🤝 其他/聯絡</span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            <div style="font-weight: {{ '600' if f.status == 0 else '400' }}; color: {{ '#212529' if f.status == 0 else '#adb5bd' }}">
+                                {{ f.content }}
+                            </div>
+                        </td>
+
+                        <td>
+                            <div class="small text-muted">
+                                <i class="bi bi-person"></i> 
+                                {{ f.line_id[:8] }}...
+                                
+                                {% if f.user_name %}
+                                    <span class="text-dark fw-bold">({{ f.user_name }})</span>
+                                {% endif %}
+                            </div>
+                            
+                            {% if f.contact_info %}
+                            <div class="small fw-bold text-primary mt-1">
+                                <i class="bi bi-envelope"></i> {{ f.contact_info }}
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <td class="text-muted small">
+                            {{ f.created_at.strftime('%m/%d %H:%M') }}
+                        </td>
+
+                        <td class="text-end pe-4">
+                            {% if f.status == 0 %}
+                            <form action="{{ url_for('admin_feedback') }}" method="POST" class="d-inline">
+                                <input type="hidden" name="action" value="resolve">
+                                <input type="hidden" name="feedback_id" value="{{ f.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-success" title="標記為已處理">
+                                    <i class="bi bi-check-lg"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            
+                            <form action="{{ url_for('admin_feedback') }}" method="POST" class="d-inline" onsubmit="return confirm('確定要刪除這條紀錄嗎？');">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="feedback_id" value="{{ f.id }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger" title="刪除">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">目前沒有任何回報，真是太和平了！🍵</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

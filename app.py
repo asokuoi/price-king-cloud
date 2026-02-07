@@ -587,9 +587,8 @@ def consumer_search():
                                pin_id="", 
                                target_chain_info="{}")
 
-    # ==========================================
-    # 3. 撈產品基礎資料
-    # ==========================================
+        # 3. 撈產品基礎資料
+    
     cols = "id, name, spec, material, category, keywords, priority, image_url, capacity, unit"
     if mode == 'store_shelf' and target_chain_id:
         if target_category: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 AND category = %s ORDER BY priority DESC, id", (target_category,))
@@ -727,6 +726,136 @@ def consumer_search():
                            liff_id=os.environ.get('LIFF_ID', config.LIFF_ID), 
                            pin_id=pin_product_id,
                            target_chain_info=json.dumps(target_chain_info, default=str))
+
+import requests
+import json
+
+# ... (其他的 code)
+
+# ==========================================
+# 🔔 LINE Messaging API 推播通知 (取代 Notify)
+# ==========================================
+def send_line_push(msg):
+    # 🔥🔥🔥 請去 LINE Developers 取得這兩個資訊 🔥🔥🔥
+    # 1. Messaging API 的 Channel Access Token
+    channel_access_token = '8LdQ3zFggLWa26+NNuLQQxjoiuASEemW/uHtJ9tfP0aDDD4w+NyezV3y4+HTn37P1NBLB2W/dxXJ4uoU3oOsZDSlx31/NJIF6Ql5bESu5R3I0GrXlplW9TNWJP1tnbqL0MRTn9+3TytfTESusr+xUgdB04t89/1O/w1cDnyilFU='
+    
+    # 2. 你自己的 User ID (Admin)
+    # 你可以在 LINE Developers -> Basic Settings 最下面找到 "Your user ID"
+    # 或者看資料庫 feedback_logs 裡你剛剛測試的那筆 line_id
+    admin_user_id = 'U6e141d01fadea94da7d408e104fccd24' 
+
+    headers = {
+        "Authorization": f"Bearer {channel_access_token}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "to": admin_user_id,
+        "messages": [
+            {
+                "type": "text",
+                "text": msg
+            }
+        ]
+    }
+
+    try:
+        response = requests.post("https://api.line.me/v2/bot/message/push", headers=headers, json=payload)
+        # Debug 用：印出結果，如果失敗可以看 log
+        if response.status_code != 200:
+            print(f"Push Error: {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"Push Exception: {e}")
+
+# ==========================================
+# 💬 後台：使用者回報管理 (Feedback Management)
+# ==========================================
+@app.route('/api/feedback', methods=['POST'])
+def api_feedback():
+    try:
+        data = request.json
+        line_id = data.get('line_id')
+        user_name = data.get('user_name', '訪客')
+        category = data.get('category')
+        content = data.get('content')
+        contact_info = data.get('contact_info', '無')
+
+        # 1. 寫入資料庫
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO feedback_logs (line_id, user_name, category, content, contact_info)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (line_id, user_name, category, content, contact_info))
+        conn.commit()
+        conn.close()
+        
+        # 2. 🔥 發送 LINE Push 通知給管理員
+        cat_map = {
+            'price': '💰 價格錯誤',
+            'wish': '✨ 許願商品',
+            'bug': '🐛 系統報錯',
+            'contact': '🤝 聯絡作者'
+        }
+        cat_text = cat_map.get(category, '其他')
+        
+        # 訊息內容
+        notify_msg = (
+            f"🔔【新回報通知】\n"
+            f"👤 用戶: {user_name}\n"
+            f"📂 類型: {cat_text}\n"
+            f"📝 內容: {content}\n"
+            f"📞 聯絡: {contact_info}"
+        )
+        
+        # 呼叫新的 Push 函式
+        send_line_push(notify_msg)
+        
+        return jsonify({'status': 'success', 'message': '感謝您的回饋！'})
+    
+    except Exception as e:
+        print(f"Feedback Error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# ==========================================
+# 💬 後台：使用者回報管理 (Feedback Management)
+# ==========================================
+@app.route('/admin/feedback', methods=['GET', 'POST'])
+def admin_feedback():
+    if not is_admin_logged_in(): return redirect(url_for('admin_login'))
+    
+    conn = get_db()
+    cur = conn.cursor()
+
+    # 處理動作：標記為已處理 / 刪除
+    if request.method == 'POST':
+        action = request.form.get('action')
+        fb_id = request.form.get('feedback_id')
+        
+        if action == 'resolve':
+            # 標記為已處理 (status = 1)
+            cur.execute("UPDATE feedback_logs SET status = 1 WHERE id = %s", (fb_id,))
+            conn.commit()
+        elif action == 'delete':
+            # 物理刪除
+            cur.execute("DELETE FROM feedback_logs WHERE id = %s", (fb_id,))
+            conn.commit()
+            
+        return redirect(url_for('admin_feedback'))
+
+    # 取得回報列表
+    # 邏輯：未處理 (status=0) 的排前面，然後照時間新->舊排
+    cur.execute("""
+        SELECT * FROM feedback_logs 
+        ORDER BY status ASC, created_at DESC
+        LIMIT 100
+    """)
+    feedbacks = cur.fetchall()
+    
+    conn.close()
+    return render_template('admin/feedback.html', feedbacks=feedbacks)
+
 # ==========================================
 # 👑 後台管理
 # ==========================================
@@ -1315,6 +1444,64 @@ def admin_events():
     
     conn.close()
     return render_template('admin/events.html', chains=chains, events=events)
+
+# ==========================================
+# 📢 後台：系統公告管理 (System Notices)
+# ==========================================
+@app.route('/admin/notices', methods=['GET', 'POST'])
+def admin_notices():
+    if not is_admin_logged_in(): return redirect(url_for('admin_login'))
+    
+    conn = get_db()
+    cur = conn.cursor()
+
+    if request.method == 'POST':
+        try:
+            action = request.form.get('action')
+            
+            if action == 'add':
+                content = request.form.get('content')
+                priority = request.form.get('priority', 0)
+                n_type = request.form.get('type', 'info')
+                
+                cur.execute("""
+                    INSERT INTO system_notices (content, priority, type, status)
+                    VALUES (%s, %s, %s, 1)
+                """, (content, priority, n_type))
+                conn.commit()
+                
+            elif action == 'edit':
+                n_id = request.form.get('notice_id')
+                content = request.form.get('content')
+                priority = request.form.get('priority', 0)
+                n_type = request.form.get('type')
+                
+                cur.execute("""
+                    UPDATE system_notices 
+                    SET content=%s, priority=%s, type=%s
+                    WHERE id=%s
+                """, (content, priority, n_type, n_id))
+                conn.commit()
+                
+            elif action == 'delete':
+                n_id = request.form.get('notice_id')
+                cur.execute("UPDATE system_notices SET status = 0 WHERE id = %s", (n_id,))
+                conn.commit()
+                
+        except Exception as e:
+            print(f"Notice Error: {e}")
+            conn.rollback()
+            
+        return redirect(url_for('admin_notices'))
+
+    # 取得公告列表 (依照權重 priority 排序，越大越前面)
+    cur.execute("SELECT * FROM system_notices WHERE status = 1 ORDER BY priority DESC, id DESC")
+    notices = cur.fetchall()
+    
+    conn.close()
+    return render_template('admin/notices.html', notices=notices)
+
+
 
 # ==========================================
 # ⚙️ 設定 (V89.1: 詳細除錯版)

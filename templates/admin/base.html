@@ -31,9 +31,21 @@
         
         <div class="px-3 mt-4 mb-2 text-muted small">資產管理</div>
         <li class="nav-item">
+        <a class="nav-link" href="/admin/notices">
+        <i class="bi bi-megaphone me-2"></i>
+        系統公告
+        </a>
+        </li>
+        <li class="nav-item">
         <a class="nav-link" href="/admin/events">
         <i class="bi bi-calendar-check me-2"></i>
         活動檔期
+        </a>
+        </li>
+        <li class="nav-item">
+        <a class="nav-link" href="/admin/feedback">
+        <i class="bi bi-chat-quote me-2"></i>
+        回饋中心
         </a>
         </li>
         <a href="/admin/products" class="{{ 'active' if request.path == '/admin/products' else '' }}">
