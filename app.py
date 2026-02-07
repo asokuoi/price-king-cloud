@@ -225,27 +225,33 @@ def handle_follow(event):
     }
     line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="歡迎加入價格王", contents=welcome_flex))
 
+# ==========================================
+# 🤖 LINE Bot 訊息處理邏輯 (Brain) - 最終定案版
+# ==========================================
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
     msg = event.message.text.strip()
     user_line_id = event.source.user_id 
     
-    conn = get_db(); cur = conn.cursor()
+    conn = get_db()
+    cur = conn.cursor()
     # 更新使用者最後活躍時間
     try: 
-        # ✅ FIX: ? -> %s, datetime -> CURRENT_TIMESTAMP
         cur.execute("UPDATE users SET last_active = CURRENT_TIMESTAMP + interval '8 hours' WHERE line_id = %s", (user_line_id,))
         conn.commit()
     except: pass
     
+    # 取得盤點通關密碼
     try:
         cur.execute("SELECT audit_code FROM admin_users WHERE username = 'admin'")
         res = cur.fetchone()
-        # DictCursor 讓這裡可以用 dict(res) 或者直接 res['audit_code']
         global_audit_code = str(res['audit_code']).strip() if res else "8888"
     except: global_audit_code = "8888"
     conn.close()
 
+    # ---------------------------------------------------------
+    # 1. 🔐 盤點系統入口 (絕對優先)
+    # ---------------------------------------------------------
     if msg == global_audit_code:
         liff_url = f"https://liff.line.me/{config.LIFF_ID}/audit"
         flex_msg = {
@@ -260,26 +266,97 @@ def handle_message(event):
             ]}
         }
         line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="驗證通過", contents=flex_msg))
-    elif msg in ["查", "盤點", "系統"]:
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🔒 請輸入盤點通關密碼"))
-    elif msg == "教學":
-        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="📝 【使用教學】\n\n1. 直接輸入商品名稱 (例如：百威) 即可搜尋全網價格。\n2. 點擊「進入比價大廳」可瀏覽各通路分類。\n3. 在單店頁面中，點擊「導航」可前往最近店家。"))
-    else:
-        # ✅ FIX: 在網址後方補上 &line_id=...，讓後端能抓到是誰搜尋的
-        search_url = f"https://liff.line.me/{config.LIFF_ID}/search?keyword={quote(msg)}&line_id={user_line_id}"
-        
-        flex_msg = {
-            "type": "bubble",
-            "body": {"type": "box", "layout": "vertical", "contents": [
-                {"type": "text", "text": f"🔍 搜尋：{msg}", "weight": "bold", "size": "lg"},
-                {"type": "text", "text": "點擊下方按鈕比價", "size": "xs", "color": "#aaaaaa"}
-            ]},
-            "footer": {"type": "box", "layout": "vertical", "contents": [
-                {"type": "button", "action": {"type": "uri", "label": "🛒 全網比價", "uri": search_url}, "style": "primary"}
-            ]}
-        }
-        line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text=f"搜尋 {msg}", contents=flex_msg))
+        return
 
+    # ---------------------------------------------------------
+    # 2. 🔒 盤點提示 & 教學
+    # ---------------------------------------------------------
+    if msg in ["查", "盤點", "系統"]:
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="🔒 請輸入盤點通關密碼"))
+        return
+
+    if msg == "教學":
+        line_bot_api.reply_message(event.reply_token, TextSendMessage(text="📝 【使用教學】\n\n1. 直接輸入商品名稱 (例如：百威) 即可搜尋全網價格。\n2. 點擊「進入比價大廳」可瀏覽各通路分類。\n3. 在單店頁面中，點擊「導航」可前往最近店家。"))
+        return
+
+    # ---------------------------------------------------------
+    # 3. 🍷 微醺精算師 (所有搜尋請求)
+    # ---------------------------------------------------------
+    search_url = f"https://liff.line.me/{config.LIFF_ID}/search?keyword={quote(msg)}&line_id={user_line_id}"
+    
+    bubble = {
+        "type": "bubble",
+        "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                # 標題：微醺精算師 (品牌綠)
+                {
+                    "type": "text",
+                    "text": "微醺精算師 🍷",
+                    "weight": "bold",
+                    "size": "xl",
+                    "color": "#1DB446",
+                    "align": "start"
+                },
+                # 分隔線
+                {
+                    "type": "separator",
+                    "margin": "md"
+                },
+                # 文案第一行
+                {
+                    "type": "text",
+                    "text": "已使用 AI 為您鎖定目標",
+                    "size": "md",
+                    "color": "#555555",
+                    "margin": "lg"
+                },
+                # 🔥 重點：關鍵字 (琥珀色 #F6A21E + 放大 XXL)
+                {
+                    "type": "text",
+                    "text": f"「{msg}」",
+                    "weight": "bold",
+                    "size": "xxl",
+                    "color": "#F6A21E", # 琥珀啤酒色
+                    "margin": "sm",
+                    "wrap": True
+                },
+                # 文案結尾
+                {
+                    "type": "text",
+                    "text": "全台酒價，一指掌握！\n準備好開啟微醺模式了嗎？",
+                    "size": "sm",
+                    "color": "#555555",
+                    "wrap": True,
+                    "margin": "lg",
+                    "lineSpacing": "6px"
+                }
+            ]
+        },
+        "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+                {
+                    "type": "button",
+                    "style": "primary",
+                    "height": "sm",
+                    "color": "#0d6efd", 
+                    "action": {
+                        "type": "uri",
+                        "label": "開啟酒鬼計算機",
+                        "uri": search_url
+                    }
+                }
+            ]
+        }
+    }
+    
+    line_bot_api.reply_message(
+        event.reply_token, 
+        FlexSendMessage(alt_text=f"AI已鎖定：{msg}", contents=bubble)
+    )
 # ==========================================
 # ⚡ 前端盤點 API (V5.2 修正版: 完整定義 cur)
 # ==========================================
