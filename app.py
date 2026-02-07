@@ -503,9 +503,6 @@ def api_price_update():
         return jsonify({'status':'error', 'msg':str(e)}), 500
     finally: conn.close()
 
-# ==========================================
-# 🔍 消費者搜尋 API (V90.1: CP值顯示邏輯修正版)
-# ==========================================
 @app.route('/search')
 def consumer_search():
     keyword = request.args.get('keyword', '').strip()
@@ -519,7 +516,8 @@ def consumer_search():
     lng = request.args.get('lng', '')
     user_line_id = request.args.get('line_id', '')
 
-    conn = get_db(); cur = conn.cursor()
+    conn = get_db()
+    cur = conn.cursor()
     products_list = []
     
     # 1. 流量紀錄
@@ -533,18 +531,65 @@ def consumer_search():
         except: pass
 
     # 2. 準備大廳資料 (沒搜尋時顯示)
-    lobby_data = {'categories': [], 'chains': []}
+    lobby_data = {'categories': [], 'chains': [], 'events': [], 'notices': []}
+    
     if not keyword and not mode:
         try:
+            # (A) 分類與通路
             cur.execute("SELECT DISTINCT category FROM products WHERE status = 1 ORDER BY category")
             for r in cur.fetchall(): lobby_data['categories'].append({"name": dict(r)['category'], "icon": "📦"})
+            
             cur.execute("SELECT id, name, logo_url FROM chains WHERE status = 1 ORDER BY id")
             for r in cur.fetchall(): lobby_data['chains'].append({"id": dict(r)['id'], "name": dict(r)['name'], "logo_url": dict(r)['logo_url'], "icon": "🏪"})
-        except: pass
-        conn.close()
-        return render_template('search.html', products_data="[]", lobby_data=lobby_data, search_keyword="", search_mode="", liff_id=os.environ.get('LIFF_ID', config.LIFF_ID), pin_id="", target_chain_info="{}")
 
+            # (B) 活動倒數資料
+            cur.execute("""
+                SELECT e.title, e.end_date, e.bg_color, c.name as chain_name, c.logo_url, c.id as chain_id
+                FROM chain_events e
+                JOIN chains c ON e.chain_id = c.id
+                WHERE e.status = 1 AND e.end_date >= CURRENT_DATE
+                ORDER BY e.end_date ASC
+            """)
+            today = datetime.now().date()
+            for r in cur.fetchall():
+                row = dict(r)
+                end_date_obj = row['end_date']
+                if isinstance(end_date_obj, str): 
+                    try:
+                        end_date_obj = datetime.strptime(end_date_obj, '%Y-%m-%d').date()
+                    except:
+                        end_date_obj = today
+
+                days_left = (end_date_obj - today).days
+                if days_left <= 3: row['status_color'] = 'danger'
+                elif days_left <= 7: row['status_color'] = 'warning'
+                else: row['status_color'] = 'success'
+                row['days_left'] = days_left
+                row['end_date'] = end_date_obj.strftime('%Y-%m-%d')
+                lobby_data['events'].append(row)
+            
+            # (C) 🔥 新增：撈取系統公告
+            cur.execute("SELECT content FROM system_notices WHERE status = 1 ORDER BY priority DESC, id DESC")
+            for r in cur.fetchall():
+                lobby_data['notices'].append(dict(r))
+
+        except Exception as e: 
+            print(f"Lobby Error: {e}")
+            pass
+        
+        conn.close()
+        return render_template('search.html', 
+                               products_data="[]", 
+                               lobby_data=json.dumps(lobby_data, default=str), 
+                               search_keyword="", 
+                               search_mode="", 
+                               liff_id=os.environ.get('LIFF_ID', config.LIFF_ID), 
+                               pin_id="", 
+                               target_chain_info="{}")
+
+    # ==========================================
     # 3. 撈產品基礎資料
+    # ==========================================
     cols = "id, name, spec, material, category, keywords, priority, image_url, capacity, unit"
     if mode == 'store_shelf' and target_chain_id:
         if target_category: cur.execute(f"SELECT {cols} FROM products WHERE status = 1 AND category = %s ORDER BY priority DESC, id", (target_category,))
@@ -553,7 +598,7 @@ def consumer_search():
         cur.execute(f"SELECT {cols} FROM products WHERE status = 1 ORDER BY priority DESC, category, id")
     products_rows = cur.fetchall()
     
-    # 4. 歷史低價 (30天內最低)
+    # 4. 歷史低價
     history_low_map = {}
     try:
         cur.execute("SELECT product_id, MIN(new_price) as min_price FROM price_logs WHERE log_time >= CURRENT_TIMESTAMP - interval '30 days' AND status = 1 GROUP BY product_id")
@@ -574,7 +619,6 @@ def consumer_search():
     
     # 6. 資料組裝
     products_map = {p['id']: dict(p) for p in products_rows}
-    # 初始化
     for pid in products_map:
         products_map[pid].update({'prices': [], 'cp_score': 999999.0, 'local_score': 999999.0, 'selling_at': [], 'cp_display': ''})
 
@@ -586,11 +630,8 @@ def consumer_search():
             price = float(d['price'])
             cap = to_float(p.get('capacity'), 0)
             unit = str(p.get('unit', '')).strip()
-            
-            # CP值計算 (每1單位價格，用於排序)
             score = (price / cap) if cap > 0 and price > 0 else price
             
-            # cp_display (顯示用，自動轉 100ml/100g)
             cp_disp = ""
             if cap > 0 and price > 0:
                 high_vol_units = ['ml', 'g', 'cc', 'cm']
@@ -600,17 +641,14 @@ def consumer_search():
                 else:
                     cp_disp = f"${round(score, 1)}/{unit}"
 
-            # 更新全域 CP 霸主 (這是預設值，全網比價時用)
             if score < p['cp_score']: 
                 p['cp_score'] = score
                 p['cp_display'] = cp_disp 
             
-            # 更新店內 CP 分數 (排序用)
             is_target_store = (str(d['chain_id']) == str(target_chain_id)) if target_chain_id else False
             if is_target_store:
                 if score < p['local_score']: p['local_score'] = score
 
-            # 時間
             time_str = ""
             if d['update_time']:
                 try:
@@ -629,7 +667,7 @@ def consumer_search():
                 'price': int(price),
                 'base_price': int(d.get('base_price', 0)),
                 'promo_label': d.get('promo_label', ''),
-                'cp_val': cp_disp,  # 把該通路的 CP 值字串存起來
+                'cp_val': cp_disp,
                 'time_ago': time_str,
                 'is_target_store': is_target_store,
                 'is_hist_low': is_hist_low
@@ -638,8 +676,6 @@ def consumer_search():
 
     # 7. 排序與關鍵字過濾
     raw_list = list(products_map.values())
-    
-    # 搜尋邏輯
     if keyword:
         kws = keyword.lower().split()
         filtered_list = []
@@ -652,15 +688,12 @@ def consumer_search():
                 filtered_list.append(p)
         raw_list = filtered_list
     
-    # 預設排序 key
     def get_sort_key(p):
         is_pinned = (str(p['id']) == str(pin_product_id)) if pin_product_id else False
         return (0 if is_pinned else 1, p['cp_score'])
 
     target_chain_info = {} 
-    
     if mode == 'store_shelf' and target_chain_id:
-        # 撈出該通路的資訊
         try:
             cur.execute("SELECT id, name, logo_url FROM chains WHERE id = %s", (target_chain_id,))
             chain_res = cur.fetchone()
@@ -669,39 +702,31 @@ def consumer_search():
 
         final_list = []
         for p in raw_list:
-            # 找出該通路的價格資料 (用來覆蓋顯示的 CP 值)
             target_price_entry = next((pr for pr in p['prices'] if pr['is_target_store']), None)
-            
             if target_price_entry:
-                # 🔥 修正核心：如果是單店模式，強制把顯示用的 CP 值改成該店的數值
-                # 這樣前端顯示的價格跟 CP 值才會吻合
                 p['cp_display'] = target_price_entry['cp_val']
                 final_list.append(p)
         
-        # 店內模式排序：置頂 -> 分類 -> 本店分數
         products_list = sorted(final_list, key=lambda x: (
             0 if str(x['id']) == str(pin_product_id) else 1, 
             x['category'], 
             x['local_score']
         ))
     else:
-        # 一般模式排序：置頂 -> 全域分數 (CP霸主)
         products_list = sorted([p for p in raw_list if len(p['prices']) > 0], key=get_sort_key)
     
-    # 價格內排序
     for p in products_list:
         p['prices'].sort(key=lambda x: x['price'])
 
     conn.close()
-    
     return render_template('search.html', 
-                           products_data=json.dumps(products_list), 
-                           lobby_data=lobby_data, 
+                           products_data=json.dumps(products_list, default=str), 
+                           lobby_data=json.dumps(lobby_data, default=str), 
                            search_keyword=keyword, 
                            search_mode=mode, 
                            liff_id=os.environ.get('LIFF_ID', config.LIFF_ID), 
                            pin_id=pin_product_id,
-                           target_chain_info=json.dumps(target_chain_info))
+                           target_chain_info=json.dumps(target_chain_info, default=str))
 # ==========================================
 # 👑 後台管理
 # ==========================================
@@ -1209,6 +1234,87 @@ def admin_staff_delete():
     # ✅ FIX: ? -> %s
     cur.execute("DELETE FROM staff WHERE line_id = %s", (request.form['line_id'],)); conn.commit(); conn.close(); flash('🗑️ 刪除成功')
     return redirect(url_for('admin_staff'))
+
+# ==========================================
+# 📅 後台：活動檔期管理 (Event Management) - V2 修正版
+# ==========================================
+@app.route('/admin/events', methods=['GET', 'POST'])
+def admin_events():
+    if not is_admin_logged_in(): return redirect(url_for('admin_login'))
+    
+    conn = get_db()
+    cur = conn.cursor()
+
+    # --- 處理表單提交 (POST) ---
+    if request.method == 'POST':
+        try:
+            action = request.form.get('action')
+            print(f"Action received: {action}") # Debug用：印出動作
+
+            if action == 'add':
+                chain_id = request.form.get('chain_id')
+                title = request.form.get('title')
+                start_date = request.form.get('start_date')
+                end_date = request.form.get('end_date')
+                bg_color = request.form.get('bg_color', '#0d6efd')
+                
+                cur.execute("""
+                    INSERT INTO chain_events (chain_id, title, start_date, end_date, bg_color, status)
+                    VALUES (%s, %s, %s, %s, %s, 1)
+                """, (chain_id, title, start_date, end_date, bg_color))
+                conn.commit()
+                
+            elif action == 'edit':
+                event_id = request.form.get('event_id')
+                chain_id = request.form.get('chain_id')
+                title = request.form.get('title')
+                start_date = request.form.get('start_date')
+                end_date = request.form.get('end_date')
+                bg_color = request.form.get('bg_color')
+                
+                cur.execute("""
+                    UPDATE chain_events 
+                    SET chain_id=%s, title=%s, start_date=%s, end_date=%s, bg_color=%s
+                    WHERE id=%s
+                """, (chain_id, title, start_date, end_date, bg_color, event_id))
+                conn.commit()
+                
+            elif action == 'delete':
+                event_id = request.form.get('event_id')
+                cur.execute("UPDATE chain_events SET status = 0 WHERE id = %s", (event_id,))
+                conn.commit()
+        
+        except Exception as e:
+            print(f"Error in admin_events: {e}")
+            conn.rollback() # 發生錯誤要 rollback
+            
+        return redirect(url_for('admin_events'))
+
+    # --- 準備頁面資料 (GET) ---
+    
+    # 1. 取得通路
+    cur.execute("SELECT id, name FROM chains WHERE status = 1 ORDER BY id")
+    chains = cur.fetchall()
+
+    # 2. 取得活動 (🔥 修正：將日期轉為字串，避免前端 JSON 錯誤)
+    cur.execute("""
+        SELECT e.*, c.name as chain_name 
+        FROM chain_events e
+        LEFT JOIN chains c ON e.chain_id = c.id
+        WHERE e.status = 1
+        ORDER BY e.end_date ASC
+    """)
+    rows = cur.fetchall()
+    events = []
+    for r in rows:
+        evt = dict(r)
+        # 強制轉字串，確保前端 JS 能讀取
+        if evt['start_date']: evt['start_date'] = str(evt['start_date'])
+        if evt['end_date']: evt['end_date'] = str(evt['end_date'])
+        events.append(evt)
+    
+    conn.close()
+    return render_template('admin/events.html', chains=chains, events=events)
 
 # ==========================================
 # ⚙️ 設定 (V89.1: 詳細除錯版)

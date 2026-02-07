@@ -22,11 +22,12 @@
             background-color: #d1e7dd;
             color: #0f5132;
             padding: 8px 15px;
-            font-size: 0.9rem; font-weight: 700;
-            display: flex; align-items: center; gap: 8px;
+            font-size: 0.95rem; font-weight: 700;
+            display: flex; align-items: center; 
             position: sticky; top: 66px; z-index: 1045;
             border-bottom: 1px solid #badbcc;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            min-height: 50px; 
         }
         .store-logo-sm { width: 24px; height: 24px; border-radius: 4px; object-fit: contain; background: #fff; border: 1px solid #fff; }
 
@@ -48,15 +49,14 @@
         .filter-chip.active { background: #212529; color: white; border-color: #212529; box-shadow: 0 3px 6px rgba(0,0,0,0.15); }
 
         /* =========================================
-           💎 卡片設計 V4.2 (包含隱形佔位符與對齊)
+           💎 卡片設計 V4.2
            ========================================= */
         .product-card { 
             background: #fff; border-radius: 12px; margin-bottom: 14px; 
-            border: 2.5px solid #ffb3c1; /* 統一粉色 */
+            border: 2.5px solid #ffb3c1; 
             box-shadow: 0 4px 8px rgba(0,0,0,0.03);
             overflow: hidden; position: relative;
         }
-        
         .product-card.global-king { border: 2.5px solid #ffc107; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.15); }
         .product-card.pinned-card { border: 2.5px solid #0d6efd; background: #f8fbff; }
         .product-card.diamond-king {
@@ -76,100 +76,90 @@
         .store-king-badge { background: #ffc107; color: #000; } 
         .diamond-badge { background: linear-gradient(135deg, #0dcaf0, #0d6efd); color: #fff; box-shadow: 0 2px 5px rgba(13, 110, 253, 0.3); }
 
-        /* 內容區 */
         .p-header { padding: 16px 16px 10px 16px; }
         .p-top-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
         .p-name { font-weight: 800; font-size: 1.15rem; color: #212529; line-height: 1.3; }
-        
         .p-meta { font-size: 0.85rem; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
         .p-tag { background: #f1f3f5; padding: 3px 8px; border-radius: 6px; font-weight: 500; color: #6c757d; font-size: 0.8rem; }
         .p-category { border: 1px solid #dee2e6; color: #adb5bd; background: #fff; }
         .p-cp { color: #198754; font-weight: 700; font-size: 0.95rem; margin-left: auto; }
 
-        /* 價格列表 (列表模式 - 右對齊) */
         .price-list { border-top: 1px solid #f8f9fa; }
         .price-row { 
             padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid #f8f9fa; cursor: pointer; position: relative;
         }
         .price-row:last-child { border-bottom: none; }
-        
         .price-row.local-winner { background-color: #f8fbff; }
         .global-king .price-row.local-winner { background-color: #fffdf5; }
         .diamond-king .price-row.local-winner { background-color: #eefcff; }
 
-        /* 通路資訊 + 箭頭 */
         .chain-info { display: flex; align-items: center; gap: 8px; flex-grow: 1; min-width: 0; }
         .chain-logo { width: 28px; height: 28px; border-radius: 6px; object-fit: contain; border: 1px solid #f0f0f0; background: #fff; flex-shrink: 0;}
         .chain-name { font-weight: 700; font-size: 0.95rem; color: #343a40; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        
-        /* ➡️ 通路箭頭 */
-        .chain-arrow-icon { 
-            color: #0d6efd; font-size: 0.8rem; margin-top: 2px; margin-left: 4px; 
-            flex-shrink: 0; min-width: 16px; 
-        }
+        .chain-arrow-icon { color: #0d6efd; font-size: 0.8rem; margin-top: 2px; margin-left: 4px; flex-shrink: 0; min-width: 16px; }
 
-        /* 價格右側區塊 */
-        .price-right { 
-            text-align: right; display: flex; flex-direction: column; 
-            align-items: flex-end; justify-content: center; min-width: 80px; 
-        }
-        
-        .promo-row { 
-            min-height: 18px; margin-bottom: 2px; 
-            display: flex; justify-content: flex-end; width: 100%;
-        }
-        .promo-badge { 
-            font-size: 0.7rem; background: #fff8c4; color: #b08d00; 
-            padding: 2px 6px; border-radius: 4px; font-weight: 700; 
-            display: inline-block;
-        }
+        .price-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 80px; }
+        .promo-row { min-height: 18px; margin-bottom: 2px; display: flex; justify-content: flex-end; width: 100%; }
+        .promo-badge { font-size: 0.7rem; background: #fff8c4; color: #b08d00; padding: 2px 6px; border-radius: 4px; font-weight: 700; display: inline-block; }
 
-        .price-val-row { 
-            display: flex; align-items: flex-end; justify-content: flex-end;
-            gap: 6px; height: 24px; 
-        }
+        .price-val-row { display: flex; align-items: flex-end; justify-content: flex-end; gap: 6px; height: 24px; }
         .price-current { font-weight: 800; font-size: 1.3rem; color: #212529; line-height: 1; }
         .price-current.is-cheapest { color: #dc3545; }
-        .price-origin { 
-            text-decoration: line-through; color: #adb5bd; 
-            font-size: 0.8rem; font-weight: 400; 
-            margin-bottom: 3px; 
-        }
-
-        /* 👻 隱形佔位符 (Ghost Placeholder) */
-        .price-origin.placeholder {
-            visibility: hidden; /* 看不見，但佔空間 */
-            width: 32px; /* 預留一個大概的寬度 */
-            display: inline-block;
-        }
+        .price-origin { text-decoration: line-through; color: #adb5bd; font-size: 0.8rem; font-weight: 400; margin-bottom: 3px; }
+        .price-origin.placeholder { visibility: hidden; width: 32px; display: inline-block; }
         
-        /* 邏輯圈 B: 店內模式大價格區 */
-        .store-price-box { 
-            padding: 18px 16px; display: flex; align-items: center; 
-            justify-content: space-between; background: #fff; 
-        }
+        .store-price-box { padding: 18px 16px; display: flex; align-items: center; justify-content: space-between; background: #fff; }
         .store-price-left { display: flex; flex-direction: column; }
-        
-        .store-promo-row { 
-            min-height: 18px; margin-bottom: 2px; 
-            display: flex; justify-content: flex-start; 
-        }
-        .store-price-val-row { 
-            display: flex; align-items: flex-end; justify-content: flex-start; 
-            gap: 6px; height: 24px;
-        }
-
-        .store-action-link { 
-            color: #0d6efd; font-weight: 700; font-size: 0.9rem; 
-            display: flex; align-items: center; gap: 4px; 
-        }
+        .store-promo-row { min-height: 18px; margin-bottom: 2px; display: flex; justify-content: flex-start; }
+        .store-price-val-row { display: flex; align-items: flex-end; justify-content: flex-start; gap: 6px; height: 24px;}
+        .store-action-link { color: #0d6efd; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 4px; }
 
         /* 大廳 */
         .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; padding: 15px; }
         .cat-item { text-align: center; position: relative;}
         .cat-icon { width: 50px; height: 50px; background: #fff; border-radius: 16px; margin: 0 auto 6px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 2px 6px rgba(0,0,0,0.03); color: #495057; }
         .cat-text { font-size: 0.8rem; color: #6c757d; font-weight: 500; }
+
+        /* 活動卡片 */
+        .event-scroll-box { display: flex; gap: 12px; overflow-x: auto; padding: 5px 15px 15px 15px; scrollbar-width: none; }
+        .event-scroll-box::-webkit-scrollbar { display: none; }
+        .event-card { min-width: 260px; max-width: 260px; background: #fff; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border: 1px solid #eee; position: relative; overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: transform 0.2s; }
+        .event-card:active { transform: scale(0.98); }
+        .event-bar { height: 6px; width: 100%; }
+        .event-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .event-header { display: flex; align-items: center; gap: 8px; }
+        .event-chain-logo { width: 20px; height: 20px; border-radius: 4px; object-fit: contain; border: 1px solid #f0f0f0; }
+        .event-chain-name { font-size: 0.85rem; color: #6c757d; font-weight: 700; }
+        .event-title { font-size: 1rem; font-weight: 800; color: #212529; line-height: 1.4; }
+        .event-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+        .event-time { font-size: 0.75rem; color: #adb5bd; font-family: monospace; }
+        .countdown-badge { font-size: 0.75rem; font-weight: 700; padding: 3px 10px; border-radius: 20px; display: flex; align-items: center; gap: 4px; }
+        .bg-danger-subtle { background: #ffebeb; color: #dc3545; }
+        .bg-warning-subtle { background: #fff8c4; color: #856404; }
+        .bg-success-subtle { background: #d1e7dd; color: #0f5132; }
+
+        /* 🔥 新增：跑馬燈 (News Ticker) */
+        .notice-container {
+            background: #fff; border-bottom: 1px solid #f0f0f0;
+            height: 40px; overflow: hidden; position: relative;
+            padding: 0 15px; display: flex; align-items: center;
+        }
+        .notice-icon { color: #f59f00; margin-right: 10px; font-size: 1rem; flex-shrink: 0; }
+        .notice-wrapper {
+            flex-grow: 1; height: 100%; position: relative; overflow: hidden;
+        }
+        .notice-list {
+            position: absolute; width: 100%; top: 0; left: 0;
+            /* 動畫由 JS 控制 */
+            transition: transform 0.5s ease-in-out;
+        }
+        .notice-item {
+            height: 40px; display: flex; align-items: center;
+            font-size: 0.9rem; color: #495057; font-weight: 500;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
     </style>
 </head>
 <body>
@@ -191,7 +181,6 @@
 </div>
 
 <div id="store-identity-bar" class="store-identity-bar d-none"></div>
-
 <div id="smart-filter-bar" class="smart-filter-bar d-none"></div>
 <div id="main-content" class="container pt-3"></div>
 
@@ -202,10 +191,10 @@
     const currentMode = "{{ search_mode }}";
     const pinId = "{{ pin_id }}";
     const targetChainInfo = {{ target_chain_info | safe if target_chain_info else '{}' }};
-    // 傳入正確的 LIFF ID (這會由 app.py 傳入)
     const myLiffId = "{{ liff_id }}"; 
 
     let activeFilters = { spec: null, material: null, keyword: null };
+    let noticeInterval = null; // 跑馬燈計時器
 
     window.onload = function() {
         initGPS();
@@ -214,10 +203,16 @@
             const storeBar = document.getElementById('store-identity-bar');
             storeBar.classList.remove('d-none');
             storeBar.innerHTML = `
-                ${targetChainInfo.logo_url ? `<img src="${targetChainInfo.logo_url}" class="store-logo-sm">` : '<i class="bi bi-shop"></i>'}
-                <span>${targetChainInfo.name}</span>
+                <div class="d-flex align-items-center gap-2">
+                    ${targetChainInfo.logo_url ? `<img src="${targetChainInfo.logo_url}" class="store-logo-sm">` : '<i class="bi bi-shop"></i>'}
+                    <span>${targetChainInfo.name}</span>
+                </div>
+                <button class="btn btn-sm btn-light text-primary fw-bold shadow-sm ms-auto rounded-pill px-3" 
+                        onclick="openMap('${targetChainInfo.name}')">
+                    <i class="bi bi-geo-alt-fill me-1"></i> 導航
+                </button>
             `;
-            document.getElementById('smart-filter-bar').style.top = '108px';
+            document.getElementById('smart-filter-bar').style.top = '112px';
         }
 
         const container = document.getElementById('main-content');
@@ -235,24 +230,20 @@
         if (u_uid) sessionStorage.setItem('u_uid', u_uid);
     }
 
-    // 修正 2：V4.6 絕對路徑防禦版 JS (取代原本容易出錯的版本)
+    function openMap(storeName) {
+        const query = encodeURIComponent(storeName);
+        const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+        window.open(url, '_blank');
+    }
+
     function goToUrlWithGPS(targetUrl) {
-        
-        // 1. 強制鎖定絕對路徑：防止 /search/search
         if (!targetUrl.startsWith('http')) {
-             // 確保有斜線
              if (!targetUrl.startsWith('/')) targetUrl = '/' + targetUrl;
-             
-             // 如果已經有雙重路徑，強制替換
              targetUrl = targetUrl.replace('/search/search', '/search');
-             
-             // 加上網域 (變成 https://...)
              targetUrl = window.location.origin + targetUrl;
         }
-
         let separator = targetUrl.includes('?') ? '&' : '?';
         let finalUrl = targetUrl;
-        
         const cachedLat = sessionStorage.getItem('u_lat');
         const cachedLng = sessionStorage.getItem('u_lng');
         const cachedUid = sessionStorage.getItem('u_uid');
@@ -260,11 +251,9 @@
         if (cachedLat && cachedLng) {
             finalUrl += `${separator}lat=${cachedLat}&lng=${cachedLng}`;
             if (cachedUid) finalUrl += `&line_id=${cachedUid}`;
-            // 建議：使用 replace 可以減少歷史紀錄堆疊
             window.location.replace(finalUrl);
             return;
         }
-        
         try {
             if (typeof liff !== 'undefined' && liff.isLoggedIn()) {
                 liff.getProfile().then(profile => {
@@ -275,7 +264,6 @@
             } else executeRedirect(finalUrl);
         } catch (e) { executeRedirect(finalUrl); }
     }
-    
 
     function executeRedirect(baseUrl) {
         if (!navigator.geolocation) { window.location.href = baseUrl; return; }
@@ -382,14 +370,12 @@
             if (currentMode === 'store_shelf') {
                 const targetPrice = p.prices.find(pr => pr.is_target_store);
                 if (targetPrice) {
-                    // 👻 店內模式的隱形佔位符邏輯
                     let originHtml;
                     if (targetPrice.base_price > targetPrice.price) {
                         originHtml = `<span class="price-origin">$${targetPrice.base_price}</span>`;
                     } else {
                         originHtml = `<span class="price-origin placeholder">$00</span>`;
                     }
-
                     const priceColorClass = (isStoreKing || isDiamond) ? 'price-current is-cheapest' : 'price-current';
                     
                     priceBody = `
@@ -459,8 +445,56 @@
     }
 
     function renderLobby(container) {
+        // 🔥 1. 跑馬燈 (Notice)
+        let noticeHtml = '';
+        if (lobbyData.notices && lobbyData.notices.length > 0) {
+            noticeHtml = `
+                <div class="notice-container">
+                    <div class="notice-icon"><i class="bi bi-megaphone-fill"></i></div>
+                    <div class="notice-wrapper">
+                        <div class="notice-list" id="noticeList">
+                            ${lobbyData.notices.map(n => `<div class="notice-item">${n.content}</div>`).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 🔥 2. 活動卡片
+        let eventsHtml = '';
+        if (lobbyData.events && lobbyData.events.length > 0) {
+            eventsHtml = `
+                <h6 class="px-3 text-secondary fw-bold mb-2 small mt-3">
+                    <i class="bi bi-fire text-danger"></i> 熱門檔期
+                </h6>
+                <div class="event-scroll-box">
+                    ${lobbyData.events.map(e => `
+                        <div class="event-card" onclick="goToUrlWithGPS('/search?mode=store_shelf&chain_id=${e.chain_id}')">
+                            <div class="event-bar" style="background: ${e.bg_color || '#0d6efd'};"></div>
+                            <div class="event-body">
+                                <div class="event-header">
+                                    <img src="${e.logo_url}" class="event-chain-logo">
+                                    <span class="event-chain-name">${e.chain_name}</span>
+                                </div>
+                                <div class="event-title">${e.title}</div>
+                                <div class="event-footer">
+                                    <div class="event-time">直到 ${e.end_date.substring(5).replace('-','/')}</div>
+                                    <div class="countdown-badge bg-${e.status_color}-subtle">
+                                        <i class="bi bi-clock"></i> 剩 ${e.days_left} 天
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
         let html = `
-            <h6 class="px-2 text-secondary fw-bold mb-3 small">熱門通路</h6>
+            ${noticeHtml}
+            ${eventsHtml}
+
+            <h6 class="px-3 text-secondary fw-bold mb-3 small ${eventsHtml ? 'mt-4' : 'mt-2'}">熱門通路</h6>
             <div class="cat-grid">
                 ${lobbyData.chains.map(c => `
                     <div class="cat-item" onclick="goToUrlWithGPS('/search?mode=store_shelf&chain_id=${c.id}')">
@@ -468,7 +502,8 @@
                         <div class="cat-text">${c.name}</div>
                     </div>`).join('')}
             </div>
-            <h6 class="px-2 text-secondary fw-bold mt-4 mb-3 small">商品分類</h6>
+            
+            <h6 class="px-3 text-secondary fw-bold mt-4 mb-3 small">商品分類</h6>
             <div class="cat-grid">
                 ${lobbyData.categories.map(c => `
                     <div class="cat-item" onclick="goToUrlWithGPS('/search?keyword=${encodeURIComponent(c.name)}')">
@@ -477,11 +512,32 @@
                     </div>`).join('')}
             </div>`;
         container.innerHTML = html;
+
+        // 🔥 啟動跑馬燈動畫
+        if (lobbyData.notices && lobbyData.notices.length > 1) {
+            startMarquee();
+        }
     }
+
+    function startMarquee() {
+        const list = document.getElementById('noticeList');
+        if (!list) return;
+        const count = list.children.length;
+        let index = 0;
+        
+        // 清除舊的
+        if (noticeInterval) clearInterval(noticeInterval);
+
+        noticeInterval = setInterval(() => {
+            index++;
+            if (index >= count) index = 0;
+            list.style.transform = `translateY(-${index * 40}px)`;
+        }, 3000); // 每 3 秒換下一則
+    }
+
     function renderEmptyState(container) { container.innerHTML = `<div class="p-5 text-center">找不到商品</div>`; }
     function handleEnter(event) { if (event.key === 'Enter') performSearch(); }
     
-    // 修正 3：刪除原本錯誤的註解與寫法，改用絕對路徑
     function performSearch() {
         const input = document.getElementById('searchInput');
         if (input && input.value.trim()) {
