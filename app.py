@@ -149,56 +149,93 @@ def callback():
     return 'OK'
 
 # 🔥 新增：監聽「加入好友」事件
+# ==========================================
+# 👋 加好友歡迎訊息 (Follow Event) - 浪漫精算師版
+# ==========================================
 @handler.add(FollowEvent)
 def handle_follow(event):
-    user_id = event.source.user_id
-    profile = None
+    user_line_id = event.source.user_id
+    
+    # 1. 取得使用者資料
     try:
-        profile = line_bot_api.get_profile(user_id)
-    except: pass
+        profile = line_bot_api.get_profile(user_line_id)
+        display_name = profile.display_name
+        picture_url = profile.picture_url
+    except:
+        display_name = "新朋友"
+        picture_url = ""
 
-    display_name = profile.display_name if profile else "新朋友"
-    picture_url = profile.picture_url if profile else ""
-
-    # 1. 會員建檔 (Insert or Update)
-    conn = get_db(); cur = conn.cursor()
+    # 2. 會員建檔 (PostgreSQL 語法)
+    conn = get_db()
+    cur = conn.cursor()
     try:
-        # ✅ FIX: SQLite 'datetime' -> Postgres 'CURRENT_TIMESTAMP'
-        # ✅ FIX: ? -> %s
+        # 使用 ON CONFLICT 做 Upsert
         cur.execute("""
             INSERT INTO users (line_id, display_name, picture_url, status, join_date, last_active)
             VALUES (%s, %s, %s, 1, CURRENT_TIMESTAMP + interval '8 hours', CURRENT_TIMESTAMP + interval '8 hours')
             ON CONFLICT(line_id) DO UPDATE SET
-            display_name = excluded.display_name,
-            picture_url = excluded.picture_url,
-            status = 1,
-            last_active = CURRENT_TIMESTAMP + interval '8 hours'
-        """, (user_id, display_name, picture_url))
+                display_name = EXCLUDED.display_name,
+                picture_url = EXCLUDED.picture_url,
+                status = 1,
+                last_active = CURRENT_TIMESTAMP + interval '8 hours'
+        """, (user_line_id, display_name, picture_url))
         conn.commit()
     except Exception as e:
         print(f"User Save Error: {e}")
     finally:
         conn.close()
 
-    # 2. 發送方案 A 迎賓卡片
-    search_url = f"https://liff.line.me/{config.LIFF_ID}/search"
+    # 3. 發送歡迎卡片 (浪漫文案 + 雙按鈕)
+    search_url = f"https://liff.line.me/{config.LIFF_ID}/search?line_id={user_line_id}"
     
-    welcome_flex = {
+    welcome_bubble = {
         "type": "bubble",
-        "hero": {
-            "type": "image",
-            "url": "https://cdn-icons-png.flaticon.com/512/3135/3135715.png",
-            "size": "full",
-            "aspectRatio": "20:13",
-            "aspectMode": "cover"
-        },
         "body": {
             "type": "box",
             "layout": "vertical",
             "contents": [
-                {"type": "text", "text": "歡迎來到 Price King 👑", "weight": "bold", "size": "xl", "color": "#1DB446"},
-                {"type": "text", "text": f"嗨！{display_name}", "size": "lg", "weight": "bold", "margin": "md"},
-                {"type": "text", "text": "我是您的全網比價助手。\n輸入商品名稱，我將為您搜尋 7-11、全聯、好市多等通路的即時價格，幫您找出最划算的選擇！", "wrap": True, "color": "#666666", "margin": "md", "size": "sm"}
+                # 標題：微醺精算師 (品牌綠)
+                {
+                    "type": "text",
+                    "text": "微醺精算師 🍷",
+                    "weight": "bold",
+                    "size": "xl",
+                    "color": "#1DB446"
+                },
+                # 分隔線
+                {
+                    "type": "separator",
+                    "margin": "md"
+                },
+                # 招呼語
+                {
+                    "type": "text",
+                    "text": f"嗨！{display_name}",
+                    "weight": "bold",
+                    "size": "lg",
+                    "margin": "lg",
+                    "color": "#555555"
+                },
+                # 🔥 浪漫文案區
+                {
+                    "type": "text",
+                    "text": "酒海茫茫，價格資訊繁雜。\n\n讓微醺精算師為您撥開迷霧，\n指引出一條通往最高 CP 值的\n微醺路徑 🥂",
+                    "size": "md",
+                    "color": "#666666",
+                    "wrap": True,
+                    "margin": "md",
+                    "lineSpacing": "6px" # 增加行距，更有詩意
+                },
+                # 琥珀色引導 (視覺焦點)
+                {
+                    "type": "text",
+                    "text": "試試輸入：「金牌」、「紅酒」",
+                    "size": "sm",
+                    "weight": "bold",
+                    "color": "#F6A21E", # 琥珀啤酒色
+                    "align": "center",
+                    "margin": "lg"
+                }
             ]
         },
         "footer": {
@@ -206,24 +243,38 @@ def handle_follow(event):
             "layout": "vertical",
             "spacing": "sm",
             "contents": [
+                # 按鈕 1：開啟計算機 (主功能)
                 {
                     "type": "button",
                     "style": "primary",
                     "height": "sm",
-                    "action": {"type": "uri", "label": "🛒 進入比價大廳", "uri": search_url},
-                    "color": "#0d6efd"
+                    "color": "#0d6efd", 
+                    "action": {
+                        "type": "uri",
+                        "label": "開啟酒鬼計算機",
+                        "uri": search_url
+                    }
                 },
+                # 按鈕 2：教學 (保留舊功能)
                 {
                     "type": "button",
                     "style": "secondary",
                     "height": "sm",
-                    "action": {"type": "message", "label": "📖 使用教學", "text": "教學"}
+                    "color": "#aaaaaa",
+                    "action": {
+                        "type": "message",
+                        "label": "📖 使用教學",
+                        "text": "教學"
+                    }
                 }
-            ],
-            "flex": 0
+            ]
         }
     }
-    line_bot_api.reply_message(event.reply_token, FlexSendMessage(alt_text="歡迎加入價格王", contents=welcome_flex))
+
+    line_bot_api.reply_message(
+        event.reply_token,
+        FlexSendMessage(alt_text="歡迎來到微醺精算師", contents=welcome_bubble)
+    )
 
 # ==========================================
 # 🤖 LINE Bot 訊息處理邏輯 (Brain) - 最終定案版
