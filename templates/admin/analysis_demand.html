@@ -1,0 +1,191 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<style>
+    /* =========================================
+       🔥 V2.7 修正版 (Badge文字對比增強)
+       ========================================= */
+    
+    /* 1. 核心配色定義 */
+    :root {
+        /* 主色 (用在進度條、圖示) */
+        --pastel-orange: #ff9a9e;
+        --pastel-green:  #56cc9d;
+        --pastel-blue:   #36b9cc;
+
+        /* 深色 (用在文字，確保閱讀清晰) */
+        --deep-orange:   #e85a60; /* 深粉紅 */
+        --deep-green:    #2a9d6e; /* 深薄荷綠 */
+    }
+
+    /* 2. Badge 專用樣式 (背景淡、文字深) */
+    .badge-soft-orange {
+        background-color: rgba(255, 154, 158, 0.15) !important; /* 淡橘底 */
+        color: var(--deep-orange) !important;                  /* 深橘字 */
+    }
+    .badge-soft-green {
+        background-color: rgba(86, 204, 157, 0.15) !important;  /* 淡綠底 */
+        color: var(--deep-green) !important;                   /* 深綠字 */
+    }
+
+    /* 3. 文字顏色工具 */
+    .text-pink-orange { color: var(--pastel-orange) !important; }
+    .text-mint-green  { color: var(--pastel-green) !important; }
+    .text-powder-blue { color: var(--pastel-blue) !important; }
+    
+    /* 4. 卡片與邊框 */
+    .card-pink-theme {
+        border: 2px solid #ffccd5;
+        border-radius: 15px;
+        box-shadow: 0 4px 12px rgba(255, 107, 129, 0.05);
+        transition: transform 0.2s;
+        background-color: #fff;
+    }
+    .card-pink-theme:hover {
+        border-color: #ff6b81;
+        transform: translateY(-3px);
+    }
+    .card-header-clean {
+        background-color: white;
+        padding: 15px 20px;
+        border-bottom: 1px solid #f9f9f9;
+    }
+    .border-pink-orange { border-left: 5px solid var(--pastel-orange) !important; }
+    .border-mint-green  { border-left: 5px solid var(--pastel-green) !important; }
+
+    /* 5. 進度條背景 */
+    .bg-pink-orange { background-color: var(--pastel-orange) !important; }
+    .bg-mint-green  { background-color: var(--pastel-green) !important; }
+
+    /* 6. 其他元件 */
+    .big-stat-number { font-size: 2.8rem; font-weight: 800; line-height: 1; letter-spacing: -1px; }
+    .progress-micro { height: 6px; border-radius: 3px; background-color: #f0f2f5; }
+    .text-percent { font-size: 0.85rem; font-weight: 700; }
+    .keyword-caps { letter-spacing: 0.5px; text-transform: uppercase; color: #5a5c69; }
+
+    /* 排行徽章 */
+    .rank-badge { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.8rem; font-weight: bold; }
+    .rank-1 { background-color: var(--pastel-orange); color: white; box-shadow: 0 2px 5px rgba(255, 154, 158, 0.4); } 
+    .rank-2 { background-color: var(--pastel-orange); color: white; opacity: 0.8; }
+    .rank-3 { background-color: var(--pastel-orange); color: white; opacity: 0.6; }
+    .rank-other { background-color: #f1f1f1; color: #aaa; }
+</style>
+
+<div class="d-flex justify-content-between align-items-end mb-4">
+    <div>
+        <h2 class="mb-1 fw-bold text-dark" style="text-shadow: 2px 2px 0px #fff;">📡 需求探索雷達 <span class="badge bg-dark fs-6 align-middle ms-2">Pro</span></h2>
+        
+        <div class="d-flex align-items-baseline mt-2">
+            <span class="text-muted me-2">近 30 天搜尋樣本數：</span>
+            <span class="big-stat-number text-powder-blue">{{ total_volume }}</span>
+            <span class="text-muted ms-2 small">次</span>
+        </div>
+    </div>
+    
+    <div class="text-end pb-2">
+        <span class="badge bg-white text-muted border px-3 py-2 rounded-pill shadow-sm">
+            <i class="bi bi-palette-fill me-1 text-pink-orange"></i> 智能合併 + 80/20法則
+        </span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card card-pink-theme h-100 border-pink-orange">
+            <div class="card-header card-header-clean d-flex justify-content-between align-items-center">
+                <span class="fw-bold fs-5 text-pink-orange">
+                    <i class="bi bi-cart-x-fill me-2"></i> 許願池 (沒賣)
+                </span>
+                <span class="badge badge-soft-orange rounded-pill">開發重點</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small">
+                            <tr>
+                                <th class="ps-4" style="width: 50px;">#</th>
+                                <th>關鍵字 / 流量佔比</th>
+                                <th class="text-center" style="width: 80px;">次數</th>
+                                <th class="text-end pe-4" style="width: 80px;">市佔率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in analysis_data if item.status == 'missed' %}
+                            <tr>
+                                <td class="ps-4">
+                                    <span class="rank-badge {{ 'rank-1' if loop.index <= 1 else ('rank-2' if loop.index <= 2 else ('rank-3' if loop.index <= 3 else 'rank-other')) }}">
+                                        {{ loop.index }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-bold keyword-caps">{{ item.keyword }}</span>
+                                        <div class="progress progress-micro mt-2 w-100">
+                                            <div class="progress-bar bg-pink-orange" style="width: {{ item.percent }}%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-center fw-bold text-secondary">{{ item.count }}</td>
+                                <td class="text-end pe-4">
+                                    <span class="text-percent text-pink-orange">{{ "%.1f"|format(item.percent) }}%</span>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="text-center py-5 text-muted">無資料</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card card-pink-theme h-100 border-mint-green">
+            <div class="card-header card-header-clean d-flex justify-content-between align-items-center">
+                <span class="fw-bold fs-5 text-mint-green">
+                    <i class="bi bi-check-circle-fill me-2"></i> 熱門榜 (有賣)
+                </span>
+                <span class="badge badge-soft-green rounded-pill">流量與營收</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="bg-light text-muted small">
+                            <tr>
+                                <th class="ps-4" style="width: 50px;">#</th>
+                                <th>關鍵字 / 流量佔比</th>
+                                <th class="text-center" style="width: 80px;">次數</th>
+                                <th class="text-end pe-4" style="width: 80px;">市佔率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set ns = namespace(counter=0) %}
+                            {% for item in analysis_data if item.status == 'hit' %}
+                            {% set ns.counter = ns.counter + 1 %}
+                            <tr>
+                                <td class="ps-4">
+                                    <span class="rank-badge rank-other">{{ ns.counter }}</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-column">
+                                        <span class="fw-bold keyword-caps">{{ item.keyword }}</span>
+                                        <div class="progress progress-micro mt-2 w-100">
+                                            <div class="progress-bar bg-mint-green" style="width: {{ item.percent }}%"></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="text-center fw-bold text-secondary">{{ item.count }}</td>
+                                <td class="text-end pe-4">
+                                    <span class="text-percent text-mint-green">{{ "%.1f"|format(item.percent) }}%</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

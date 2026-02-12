@@ -1109,6 +1109,83 @@ def admin_dashboard():
                            abnormal_list=abnormal_list, 
                            recent_searches=recent_searches,
                            query_date=query_date)     # 傳遞查詢日期回前端
+
+# ==========================================
+# 🕵️‍♂️ 需求探索雷達 V2.5 (80/20法則 + 智能合併版)
+# ==========================================
+@app.route('/admin/analysis/demand')
+def analysis_demand():
+    if not is_admin_logged_in(): return redirect(url_for('admin_login'))
+    
+    conn = get_db()
+    cur = conn.cursor()
+    
+    # 🔥 修正 1：在 SQL 層級直接做「去除空白」+「轉大寫」的合併
+    # 這樣 Asahi, asahi, ASAHI 會被 GROUP BY 視為同一個
+    sql = """
+        SELECT 
+            UPPER(TRIM(keyword)) as clean_kw, 
+            COUNT(*) as cnt, 
+            MAX(log_time) as last_search
+        FROM search_logs 
+        WHERE log_time >= NOW() - INTERVAL '30 DAYS'
+        AND TRIM(keyword) != ''  -- 排除空字串
+        GROUP BY UPPER(TRIM(keyword))
+        ORDER BY cnt DESC 
+        LIMIT 100
+    """
+    cur.execute(sql)
+    raw_keywords = cur.fetchall()
+    
+    # 🔥 修正 2：計算「總搜尋量」 (分母)
+    total_searches = sum([row[1] for row in raw_keywords]) if raw_keywords else 1
+    
+    # 準備比對用的現有商品關鍵字 (全部轉大寫)
+    cur.execute("SELECT keywords, name FROM products WHERE status = 1")
+    products = cur.fetchall()
+    
+    existing_keywords = set()
+    for p in products:
+        p_name = p[1]
+        if p_name: existing_keywords.add(p_name.upper()) # 轉大寫
+        
+        p_keys = p[0].split(',') if p[0] else []
+        for k in p_keys:
+            if k: existing_keywords.add(k.strip().upper()) # 轉大寫
+            
+    # 資料組裝
+    analysis_data = []
+    
+    for row in raw_keywords:
+        clean_kw = row[0] # 這已經是 SQL 轉好的大寫 (例如 ASAHI)
+        count = row[1]
+        last_time = row[2]
+        
+        # 計算佔比
+        percent = (count / total_searches) * 100
+        
+        # 比對狀態
+        status = "missed"
+        for exist_k in existing_keywords:
+            # 兩邊都是大寫，直接比對
+            if clean_kw in exist_k or exist_k in clean_kw:
+                status = "hit"
+                break
+        
+        analysis_data.append({
+            'keyword': clean_kw,  # 顯示合併後的大寫字
+            'count': count,
+            'percent': percent,   # 新增佔比欄位
+            'last_time': last_time,
+            'status': status
+        })
+        
+    conn.close()
+    
+    # 這裡把 total_searches 也傳給前端，可以用來顯示總量
+    return render_template('admin/analysis_demand.html', 
+                           analysis_data=analysis_data, 
+                           total_volume=total_searches)
 # ==========================================
 # ⚡ 戰情室 API：取得單一商品歷史紀錄 (給 Modal 用)
 # ==========================================

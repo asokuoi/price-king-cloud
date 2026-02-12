@@ -22,6 +22,9 @@
         <a href="/admin/dashboard" class="{{ 'active' if request.path == '/admin/dashboard' else '' }}">
             <i class="bi bi-speedometer2"></i> 營運戰情室
         </a>
+        <a href="/admin/analysis/demand" class="{{ 'active' if '/admin/analysis/demand' in request.path else '' }}">
+            <i class="bi bi-radar"></i> 需求探索雷達
+        </a>
         <a href="/admin/audit" class="{{ 'active' if request.path == '/admin/audit' else '' }}">
             <i class="bi bi-journal-text"></i> 商品價格勾稽室
         </a>
